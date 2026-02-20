@@ -171,22 +171,19 @@ export default function Dashboard() {
     setLoading(true)
     setProgress(15)
     setRoutes([])
-    setCurrentRoute("Serverdan ma'lumot olinmoqda...")
 
     try {
       const res = await fetch('/api/trains', { cache: 'no-store' })
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      const data = await res.json()
+      if (!res.ok) throw new Error(`API error ${res.status}`)
 
+      const data = await res.json()
       setRoutes(data.routes || [])
-      setFetchedAt(new Date().toLocaleTimeString('uz'))
       setProgress(100)
-      showToast(`✅ ${(data.routes || []).length} ta marshrut yuklandi!`)
     } catch (e) {
-      showToast(`❌ Xatolik: ${e.message}`, true)
+      console.error(e)
+      setProgress(0) // prevent stuck at 15%
     } finally {
       setLoading(false)
-      setCurrentRoute('')
     }
   }, [])
 
