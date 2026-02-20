@@ -2,46 +2,27 @@ import { NextResponse } from 'next/server'
 
 const BASE = 'https://eticket.railway.uz'
 
-async function bootstrapSession() {
-  const res = await fetch(BASE, {
-    method: 'GET',
-    headers: {
-      'User-Agent': 'Mozilla/5.0',
-      'Accept': 'text/html',
-    },
-    cache: 'no-store'
-  })
+function buildHeaders() {
+  const cookie = process.env.RAILWAY_COOKIE || ''
+  const xsrf = process.env.RAILWAY_XSRF || ''
 
-  const cookies = res.headers.get('set-cookie') || ''
-  const text = await res.text()
-
-  let csrf = null
-
-  // Try meta tag
-  const metaMatch = text.match(/name="csrf-token"\s+content="([^"]+)"/i)
-  if (metaMatch) csrf = metaMatch[1]
-
-  // Try XSRF-TOKEN cookie
-  const cookieMatch = cookies.match(/XSRF-TOKEN=([^;]+)/)
-  if (!csrf && cookieMatch) csrf = decodeURIComponent(cookieMatch[1])
-
-  return { cookies, csrf }
+  return {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json',
+    'User-Agent': 'Mozilla/5.0',
+    'Origin': 'https://eticket.railway.uz',
+    'Referer': 'https://eticket.railway.uz/',
+    'X-Requested-With': 'XMLHttpRequest',
+    ...(cookie ? { cookie } : {}),
+    ...(xsrf ? { 'X-XSRF-TOKEN': xsrf } : {}),
+    ...(xsrf ? { 'X-CSRF-TOKEN': xsrf } : {}),
+  }
 }
 
-async function railwayFetch(url, body) {
-  const { cookies, csrf } = await bootstrapSession()
-
-  const res = await fetch(`${BASE}${url}`, {
+async function railwayPost(endpoint, body) {
+  const res = await fetch(`${BASE}${endpoint}`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-      'User-Agent': 'Mozilla/5.0',
-      'X-Requested-With': 'XMLHttpRequest',
-      ...(cookies ? { cookie: cookies } : {}),
-      ...(csrf ? { 'X-CSRF-TOKEN': csrf } : {}),
-      ...(csrf ? { 'X-XSRF-TOKEN': csrf } : {}),
-    },
+    headers: buildHeaders(),
     body: JSON.stringify(body),
     cache: 'no-store'
   })
@@ -66,12 +47,15 @@ async function railwayFetch(url, body) {
 }
 
 export async function GET(req) {
-  const debug = new URL(req.url).searchParams.get('debug')
+  const { searchParams } = new URL(req.url)
+  const debug = searchParams.get('debug')
 
   const today = new Date().toISOString().split('T')[0]
 
-  const stations = await railwayFetch('/api/v1/stations/list', {})
-  const trains = await railwayFetch('/api/v1/trains/list', {
+  // Example route (you can later loop through many routes)
+  const stations = await railwayPost('/api/v1/stations/list', {})
+
+  const trains = await railwayPost('/api/v1/trains/list', {
     from: 'Toshkent',
     to: 'Samarqand',
     date: today
@@ -81,7 +65,9 @@ export async function GET(req) {
     return NextResponse.json({
       stations,
       trains,
-      date: today
+      date: today,
+      usingCookie: !!process.env.RAILWAY_COOKIE,
+      usingXSRF: !!process.env.RAILWAY_XSRF
     })
   }
 
