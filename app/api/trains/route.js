@@ -32,6 +32,38 @@ function classifyTrain(name = '') {
   return 'yolovchi'
 }
 
+/**
+ * In some environments (e.g., Vercel), eticket.railway.uz may respond with non‑JSON
+ * (WAF/anti-bot HTML, plain-text errors, etc.).
+ * This helper safely returns either parsed JSON or a text snippet for debugging.
+ */
+async function readJsonOrText(res) {
+  const contentType = (res.headers.get('content-type') || '').toLowerCase()
+  const status = res.status
+  const ok = res.ok
+
+  // Read as text first (works for both JSON and HTML)
+  const rawText = await res.text()
+
+  // Try to parse JSON even if content-type is wrong
+  let json = null
+  let jsonError = null
+  try {
+    if (rawText && rawText.trim().length) json = JSON.parse(rawText)
+  } catch (e) {
+    jsonError = e?.message || String(e)
+  }
+
+  return {
+    ok,
+    status,
+    contentType,
+    json,
+    jsonError,
+    textSnippet: rawText?.slice(0, 600) || '',
+  }
+}
+
 // Get station code from name — railway.uz uses numeric station codes
 async function getStationCode(name) {
   try {
@@ -49,7 +81,9 @@ async function getStationCode(name) {
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null
-    const data = await res.json()
+    const parsed = await readJsonOrText(res)
+    const data = parsed.json
+    if (!data) return null
     // API returns list of stations — find exact match
     const stations = data.list || data.data || data || []
     const match = stations.find(s =>
@@ -92,7 +126,9 @@ async function fetchRoute(fromCode, toCode, fromName, toName) {
           signal: AbortSignal.timeout(8000),
         })
         if (!res.ok) continue
-        const data = await res.json()
+        const parsed = await readJsonOrText(res)
+        const data = parsed.json
+        if (!data) continue
         const trains = data.trains || data.data || data.list || data.items || []
         if (trains.length > 0) {
           trains.forEach(t => {
@@ -140,7 +176,7 @@ export async function GET(request) {
         body: JSON.stringify({ name: 'Toshkent' }),
         cache: 'no-store',
       })
-      const stData = await stRes.json()
+      const stParsed = await readJsonOrText(stRes)
 
       // Then try trains list
       const trRes = await fetch(`${RAILWAY_API}/trains/list`, {
@@ -155,11 +191,11 @@ export async function GET(request) {
         body: JSON.stringify({ from: 'Toshkent', to: 'Samarqand', date: today }),
         cache: 'no-store',
       })
-      const trData = await trRes.json()
+      const trParsed = await readJsonOrText(trRes)
 
       return Response.json({
-        stationsResponse: stData,
-        trainsResponse: trData,
+        stations: stParsed,
+        trains: trParsed,
         date: today
       })
     } catch (e) {
