@@ -159,7 +159,7 @@ export default function Dashboard() {
     setLoading(true)
     setProgress(0)
     setRoutes([])
-    setCurrentRoute('Server orqali yuklanmoqda...')
+    setCurrentRoute('Jadval ma\'lumotlari yuklanmoqda...')
 
     try {
       // Call our own API route which fetches from railway.uz server-side (no CORS issues)
@@ -223,12 +223,12 @@ export default function Dashboard() {
           <div className="logo">🚄</div>
           <div>
             <div className="brand-name">Rail Intel</div>
-            <div className="brand-sub">O'zbekiston Temir Yo'llari · Jonli monitoring</div>
+            <div className="brand-sub">O'zbekiston Temir Yo'llari · Haftalik jadval</div>
           </div>
         </div>
         <div className="live-badge">
           <div className="live-dot" />
-          Jonli ma'lumotlar · eticket.railway.uz
+          Haftalik jadval · O'zbekiston Temir Yo'llari
         </div>
       </header>
 
@@ -252,9 +252,9 @@ export default function Dashboard() {
           {/* Stats */}
           <div className="stats">
             {[
-              { lbl: 'JAMI REYLAR', val: totalReys, sub: `${routes.length} marshrut`, cls: 'c0', color: 'var(--accent)', icon: '🚂' },
+              { lbl: 'HAFTALIK REYLAR', val: totalReys, sub: `${routes.length} marshrut`, cls: 'c0', color: 'var(--accent)', icon: '🚂' },
               { lbl: 'AFROSIYOB', val: totalAfro, sub: totalReys ? `${((totalAfro / totalReys) * 100).toFixed(1)}% jami` : '—', cls: 'c1', color: 'var(--accent2)', icon: '⚡' },
-              { lbl: 'SHARQ', val: totalSharq, sub: 'poezdlar', cls: 'c2', color: 'var(--accent3)', icon: '🚄' },
+              { lbl: 'SHARQ', val: totalSharq, sub: totalReys ? `${((totalSharq / totalReys) * 100).toFixed(1)}% jami` : '—', cls: 'c2', color: 'var(--accent3)', icon: '🚄' },
               { lbl: 'MARSHRUTLAR', val: routes.length, sub: '5 asosiy tugun', cls: 'c3', color: 'var(--yolo)', icon: '📍' },
             ].map((s, i) => (
               <div key={i} className={`stat ${s.cls}`}>
@@ -271,7 +271,7 @@ export default function Dashboard() {
             <div className="progress-wrap">
               <div className="train-anim">🚄</div>
               <div className="progress-title">Ma'lumotlar yuklanmoqda...</div>
-              <div className="progress-sub">eticket.railway.uz dan jonli ma'lumotlar olinmoqda</div>
+              <div className="progress-sub">Jadval ma'lumotlari olinmoqda</div>
               <div className="progress-bar">
                 <div className="progress-fill" style={{ width: `${progress}%` }} />
               </div>
@@ -324,7 +324,7 @@ export default function Dashboard() {
                   <thead>
                     <tr>
                       <th>MARSHRUT</th>
-                      <th className={sortKey === 'total' ? 'sorted' : ''} onClick={() => toggleSort('total')}>JAMI{sa('total')}</th>
+                      <th className={sortKey === 'total' ? 'sorted' : ''} onClick={() => toggleSort('total')}>HAFTALIK{sa('total')}</th>
                       <th className={sortKey === 'afrosiyob' ? 'sorted' : ''} onClick={() => toggleSort('afrosiyob')}>AFROSIYOB{sa('afrosiyob')}</th>
                       <th className={sortKey === 'sharq' ? 'sorted' : ''} onClick={() => toggleSort('sharq')}>SHARQ{sa('sharq')}</th>
                       <th className={sortKey === 'tezkor' ? 'sorted' : ''} onClick={() => toggleSort('tezkor')}>TEZKOR{sa('tezkor')}</th>
