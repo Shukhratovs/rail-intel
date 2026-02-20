@@ -108,6 +108,7 @@ const styles = `
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 `
 
+const RAILWAY = 'https://eticket.railway.uz/api/v1'
 const HUBS = ['Barcha', 'Toshkent', 'Samarqand', 'Buxoro', 'Andijon', 'Namangan']
 const PAGE_SIZE = 12
 
@@ -144,9 +145,33 @@ function csvDownload(rows) {
   }).click()
 }
 
-// NOTE: We DO NOT call eticket.railway.uz directly from the browser.
-// Browsers often block it due to CORS / anti-bot protections.
-// The UI calls our server route (/api/trains), and the server proxies the request.
+// Fetch trains for one route for the next 7 days — called from the browser
+async function fetchRouteFromBrowser(from, to) {
+  const counts = { total: 0, afrosiyob: 0, sharq: 0, tezkor: 0, yolovchi: 0 }
+  const today = new Date()
+
+  for (let day = 0; day < 7; day++) {
+    const d = new Date(today)
+    d.setDate(d.getDate() + day)
+    const dateStr = d.toISOString().split('T')[0]
+
+    try {
+      const res = await fetch(`${RAILWAY}/trains/list`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from, to, date: dateStr }),
+      })
+      if (!res.ok) continue
+      const data = await res.json()
+      const trains = data.trains || data.data || data.list || data.items || []
+      trains.forEach(t => {
+        counts.total++
+        counts[classify(t.name || t.trainName || t.number || '')]++
+      })
+    } catch { /* skip */ }
+  }
+  return counts
+}
 
 export default function Dashboard() {
   const [routes, setRoutes] = useState([])
@@ -171,19 +196,22 @@ export default function Dashboard() {
     setLoading(true)
     setProgress(15)
     setRoutes([])
+    setCurrentRoute('Serverdan ma’lumot olinmoqda...')
 
     try {
       const res = await fetch('/api/trains', { cache: 'no-store' })
-      if (!res.ok) throw new Error(`API error ${res.status}`)
-
+      if (!res.ok) throw new Error(`API error: ${res.status}`)
       const data = await res.json()
+
       setRoutes(data.routes || [])
+      setFetchedAt(new Date().toLocaleTimeString('uz'))
       setProgress(100)
+      showToast(`✅ ${(data.routes || []).length} ta marshrut yuklandi!`)
     } catch (e) {
-      console.error(e)
-      setProgress(0) // prevent stuck at 15%
+      showToast(`❌ Xatolik: ${e.message}`, true)
     } finally {
       setLoading(false)
+      setCurrentRoute('')
     }
   }, [])
 
