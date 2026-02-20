@@ -223,9 +223,10 @@ export default function Dashboard() {
                         <th></th><th></th><th></th>
                         <th style={{fontSize:7}}>JAMI</th>
                         <th style={{fontSize:7}}>SHUNDAN</th>
-                        {(data.days||[]).map((_,i) => (
-                          <><th key={`j${i}`} className="day-col" style={{fontSize:7}}>JAMI</th><th key={`a${i}`} className="day-col" style={{fontSize:7}}>AFRO</th></>
-                        ))}
+                        {(data.days||[]).flatMap((_,i) => [
+                          <th key={`j${i}`} className="day-col" style={{fontSize:7}}>JAMI</th>,
+                          <th key={`a${i}`} className="day-col" style={{fontSize:7}}>AFRO</th>
+                        ])}
                       </tr>
                     </thead>
                     <tbody>
@@ -241,9 +242,10 @@ export default function Dashboard() {
                               <td></td>
                               <td className="num">{group.hubWeekly.total||''}</td>
                               <td className="num">{group.hubWeekly.afrosiyob||''}</td>
-                              {(data.days||[]).map((_,i) => (
-                                <><td key={`e1${i}`} className="day-col"></td><td key={`e2${i}`} className="day-col"></td></>
-                              ))}
+                              {(data.days||[]).flatMap((_,i) => [
+                                <td key={`e1${i}`} className="day-col"></td>,
+                                <td key={`e2${i}`} className="day-col"></td>
+                              ])}
                             </tr>
                           )
                         } else {
@@ -257,12 +259,10 @@ export default function Dashboard() {
                                 <td className="route-name">{r.routeName}</td>
                                 <td className={`num ${r.weekly.total===0?'zero':''}`} style={{fontWeight:700}}>{r.weekly.total||''}</td>
                                 <td className={`num afro ${r.weekly.afrosiyob===0?'zero':''}`}>{r.weekly.afrosiyob||''}</td>
-                                {(r.perDay||[]).map((pd,di) => (
-                                  <>
-                                    <td key={`t${di}`} className={`num day-col ${pd.total===0?'zero':''}`}>{pd.total||''}</td>
-                                    <td key={`a${di}`} className={`num day-col afro ${pd.afrosiyob===0?'zero':''}`}>{pd.afrosiyob||''}</td>
-                                  </>
-                                ))}
+                                {(r.perDay||[]).flatMap((pd,di) => [
+                                  <td key={`t${di}`} className={`num day-col ${pd.total===0?'zero':''}`}>{pd.total||''}</td>,
+                                  <td key={`a${di}`} className={`num day-col afro ${pd.afrosiyob===0?'zero':''}`}>{pd.afrosiyob||''}</td>
+                                ])}
                               </tr>
                             )
                           })
