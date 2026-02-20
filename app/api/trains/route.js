@@ -1,358 +1,161 @@
 // app/api/trains/route.js
-// Scrapes the public Uzbekistan train timetable from advantour.com
-// and aggregates train counts per route. No session/auth needed.
+// Schedule data grouped by hub station, per-day breakdown with actual dates
 
-const TIMETABLE_URL = 'https://www.advantour.com/uzbekistan/trains/timetable.htm'
+// [trainName, number, type, from, to, daysOfWeek]  (null = daily, else array 0=Mon..6=Sun)
+const S = [
+  // AFROSIYOB
+  ["A","771","a","Buxoro","Toshkent",null],["A","771","a","Buxoro","Samarqand",null],["A","771","a","Buxoro","Navoiy",null],
+  ["A","771","a","Navoiy","Toshkent",null],["A","771","a","Navoiy","Samarqand",null],["A","771","a","Samarqand","Toshkent",null],
+  ["A","774","a","Toshkent","Samarqand",null],
+  ["A","764","a","Toshkent","Qarshi",null],["A","764","a","Samarqand","Qarshi",null],
+  ["A","766","a","Toshkent","Samarqand",null],
+  ["A","768","a","Toshkent","Samarqand",null],["A","768","a","Toshkent","Buxoro",null],["A","768","a","Toshkent","Navoiy",null],
+  ["A","768","a","Samarqand","Buxoro",null],["A","768","a","Samarqand","Navoiy",null],["A","768","a","Navoiy","Buxoro",null],
+  ["A","770","a","Toshkent","Samarqand",null],["A","770","a","Toshkent","Buxoro",null],["A","770","a","Toshkent","Navoiy",null],
+  ["A","770","a","Samarqand","Buxoro",null],["A","770","a","Samarqand","Navoiy",null],["A","770","a","Navoiy","Buxoro",null],
+  ["A","778","a","Toshkent","Samarqand",[4,5,6]],["A","778","a","Toshkent","Buxoro",[4,5,6]],["A","778","a","Toshkent","Navoiy",[4,5,6]],
+  ["A","778","a","Samarqand","Buxoro",[4,5,6]],["A","778","a","Samarqand","Navoiy",[4,5,6]],["A","778","a","Navoiy","Buxoro",[4,5,6]],
+  ["A","769","a","Buxoro","Toshkent",null],["A","769","a","Buxoro","Samarqand",null],["A","769","a","Buxoro","Navoiy",null],
+  ["A","769","a","Navoiy","Toshkent",null],["A","769","a","Navoiy","Samarqand",null],["A","769","a","Samarqand","Toshkent",null],
+  ["A","767","a","Buxoro","Toshkent",null],["A","767","a","Buxoro","Samarqand",null],["A","767","a","Buxoro","Navoiy",null],
+  ["A","767","a","Navoiy","Toshkent",null],["A","767","a","Navoiy","Samarqand",null],["A","767","a","Samarqand","Toshkent",null],
+  // SHARQ
+  ["S","711","s","Buxoro","Toshkent",null],["S","711","s","Buxoro","Samarqand",null],["S","711","s","Buxoro","Navoiy",null],
+  ["S","711","s","Navoiy","Toshkent",null],["S","711","s","Navoiy","Samarqand",null],["S","711","s","Samarqand","Toshkent",null],
+  ["S","710","s","Toshkent","Samarqand",null],["S","710","s","Toshkent","Buxoro",null],["S","710","s","Toshkent","Navoiy",null],
+  ["S","710","s","Samarqand","Buxoro",null],["S","710","s","Samarqand","Navoiy",null],["S","710","s","Navoiy","Buxoro",null],
+  ["S","712","s","Samarqand","Buxoro",null],["S","712","s","Samarqand","Navoiy",null],["S","712","s","Navoiy","Buxoro",null],
+  ["S","709","s","Buxoro","Toshkent",null],["S","709","s","Buxoro","Samarqand",null],["S","709","s","Buxoro","Navoiy",null],
+  ["S","709","s","Navoiy","Toshkent",null],["S","709","s","Navoiy","Samarqand",null],["S","709","s","Samarqand","Toshkent",null],
+  // YOLOVCHI
+  ["Y","730","y","Toshkent","Andijon",null],["Y","730","y","Toshkent","Qo'qon",null],["Y","730","y","Toshkent","Margilon",null],
+  ["Y","730","y","Qo'qon","Andijon",null],["Y","730","y","Margilon","Andijon",null],
+  ["Y","729","y","Andijon","Toshkent",null],["Y","729","y","Andijon","Qo'qon",null],["Y","729","y","Andijon","Margilon",null],
+  ["Y","729","y","Qo'qon","Toshkent",null],["Y","729","y","Margilon","Toshkent",null],
+  ["Y","731","y","Andijon","Toshkent",[3,4,5,6]],["Y","731","y","Andijon","Qo'qon",[3,4,5,6]],["Y","731","y","Andijon","Margilon",[3,4,5,6]],
+  ["Y","731","y","Margilon","Toshkent",[3,4,5,6]],["Y","731","y","Qo'qon","Toshkent",[3,4,5,6]],
+  // NIGHT
+  ["N","54","y","Toshkent","Nukus",null],["N","54","y","Toshkent","Samarqand",null],["N","54","y","Toshkent","Buxoro",null],["N","54","y","Toshkent","Navoiy",null],
+  ["N","54","y","Nukus","Toshkent",null],["N","54","y","Nukus","Samarqand",null],["N","54","y","Nukus","Buxoro",null],["N","54","y","Nukus","Navoiy",null],
+  ["N","54","y","Navoiy","Toshkent",null],["N","54","y","Samarqand","Toshkent",null],
+  ["N","56","y","Toshkent","Urganch",null],["N","56","y","Toshkent","Xiva",[2,3,5,6]],
+  ["N","56","y","Toshkent","Samarqand",null],["N","56","y","Toshkent","Buxoro",null],["N","56","y","Toshkent","Navoiy",null],
+  ["N","56","y","Urganch","Toshkent",null],["N","56","y","Urganch","Samarqand",null],["N","56","y","Urganch","Buxoro",null],
+  ["N","56","y","Xiva","Toshkent",[2,3,5,6]],["N","56","y","Xiva","Samarqand",[2,3,5,6]],["N","56","y","Xiva","Buxoro",[2,3,5,6]],["N","56","y","Xiva","Urganch",[2,3,5,6]],
+  ["N","56","y","Samarqand","Buxoro",null],["N","56","y","Samarqand","Urganch",null],
+  ["N","56","y","Navoiy","Buxoro",null],["N","56","y","Navoiy","Urganch",null],["N","56","y","Navoiy","Toshkent",null],
+  ["N","56","y","Buxoro","Urganch",null],["N","56","y","Buxoro","Xiva",[2,3,5,6]],
+  ["N","58","y","Toshkent","Urganch",[0,1,4]],
+  ["N","58","y","Samarqand","Buxoro",[0,1,4]],["N","58","y","Samarqand","Urganch",[0,1,4]],["N","58","y","Navoiy","Urganch",[0,1,4]],
+  ["N","80","y","Toshkent","Termiz",null],["N","80","y","Toshkent","Qarshi",null],
+  ["N","80","y","Samarqand","Termiz",null],["N","80","y","Samarqand","Qarshi",null],
+  ["N","80","y","Qarshi","Termiz",null],["N","80","y","Qarshi","Toshkent",null],["N","80","y","Qarshi","Samarqand",null],
+  ["N","82","y","Toshkent","Qarshi",null],
+  ["N","125","y","Andijon","Xiva",null],["N","125","y","Andijon","Toshkent",null],["N","125","y","Andijon","Samarqand",null],["N","125","y","Andijon","Buxoro",null],
+  ["N","125","y","Qo'qon","Toshkent",null],["N","125","y","Qo'qon","Buxoro",null],["N","125","y","Qo'qon","Xiva",null],
+  ["N","125","y","Samarqand","Buxoro",null],["N","125","y","Samarqand","Xiva",null],
+  ["N","125","y","Buxoro","Xiva",null],["N","125","y","Buxoro","Urganch",null],
+  ["N","126","y","Xiva","Andijon",null],["N","126","y","Xiva","Toshkent",null],["N","126","y","Xiva","Samarqand",null],
+  ["N","126","y","Xiva","Buxoro",null],["N","126","y","Xiva","Qo'qon",null],
+  ["N","126","y","Urganch","Buxoro",null],["N","126","y","Urganch","Toshkent",null],
+  ["N","126","y","Toshkent","Andijon",null],["N","126","y","Toshkent","Qo'qon",null],
+  ["N","126","y","Samarqand","Andijon",null],
+]
 
-// Station name normalization — map various spellings to our canonical names
-const STATION_ALIASES = {
-  'tashkent': 'Toshkent', 'toshkent': 'Toshkent',
-  'samarkand': 'Samarqand', 'samarqand': 'Samarqand',
-  'bukhara': 'Buxoro', 'buxoro': 'Buxoro', 'bokhara': 'Buxoro',
-  'khiva': 'Xiva', 'xiva': 'Xiva',
-  'urgench': 'Urganch', 'urganch': 'Urganch',
-  'nukus': 'Nukus',
-  'navoi': 'Navoiy', 'navoiy': 'Navoiy',
-  'andijan': 'Andijon', 'andijon': 'Andijon',
-  'karshi': 'Qarshi', 'qarshi': 'Qarshi',
-  'jizzax': 'Jizzax', 'jizzakh': 'Jizzax',
-  'termez': 'Termiz', 'termiz': 'Termiz',
-  'namangan': 'Namangan',
-  'kokand': "Qo'qon", "qo'qon": "Qo'qon", 'kokond': "Qo'qon",
-  'margilan': 'Margilon', 'margilon': 'Margilon',
-  'guliston': 'Guliston', 'gulistan': 'Guliston',
-  'shovot': 'Shovot',
-  'boysun': 'Boysun',
-  'sariosiyo': 'Sariosiyo',
-  'shymkent': 'Shymkent',
-  'almaty': 'Almaty',
-}
+const HUBS_ORDER = [
+  { n:'Toshkent', d:['Samarqand','Buxoro','Xiva','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan'] },
+  { n:'Guliston', d:[] }, { n:'Jizzax', d:[] }, { n:'Angren', d:[] },
+  { n:'Andijon', d:['Toshkent','Samarqand','Buxoro','Xiva','Urganch','Navoiy','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan'] },
+  { n:'Namangan', d:[] }, { n:'Margilon', d:[] }, { n:"Qo'qon", d:[] }, { n:'Pop', d:[] },
+  { n:'Samarqand', d:['Toshkent','Buxoro','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan','Xiva'] },
+  { n:'Buxoro', d:['Toshkent','Samarqand','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Xiva'] },
+  { n:'Navoiy', d:['Toshkent','Samarqand','Buxoro','Urganch','Nukus'] },
+  { n:'Qarshi', d:['Toshkent','Samarqand','Termiz'] },
+  { n:'Nukus', d:['Toshkent','Samarqand','Buxoro','Navoiy'] },
+  { n:'Urganch', d:['Toshkent','Samarqand','Buxoro'] },
+  { n:'Xiva', d:['Toshkent','Samarqand','Buxoro','Andijon',"Qo'qon",'Urganch'] },
+]
 
-function normalizeStation(name) {
-  const key = (name || '').toLowerCase().trim()
-  return STATION_ALIASES[key] || name
-}
-
-// Classify train type from its name
-function classifyTrain(trainName) {
-  const n = (trainName || '').toLowerCase()
-  if (n.includes('afrosiyob') || n.includes('afrosiab')) return 'afrosiyob'
-  if (n.includes('sharq')) return 'sharq'
-  if (n.includes('tezkor')) return 'tezkor'
-  if (n.includes('ozbekiston') || n.includes('o\'zbekiston')) return 'yolovchi'
-  if (n.includes('night')) return 'yolovchi'
-  return 'yolovchi'
-}
-
-// Parse the HTML timetable from advantour.com
-function parseTimetable(html) {
-  const trains = []
-
-  // Match table rows with train info
-  // Pattern: train name link, then departure station, arrival station
-  // The HTML has rows like:
-  //   <a href="...">Afrosiyob Train: 771</a> ... **03:15** Bukhara ... **07:35** Tashkent ... Daily
-  
-  // Extract all timetable entries using regex on the HTML structure
-  // Each entry has: train name, departure time + station, arrival time + station, duration, frequency
-  
-  // Pattern for train entries in the table
-  const rowPattern = /\*\*(\d{2}:\d{2})\*\*\s+([A-Za-z\u0027]+)\s+\|\s+\*\*(\d{2}:\d{2})(?:\+\d)?\*\*\s+([A-Za-z\u0027]+)\s+\|\s+[\dh\sm]+\s+\|\s+([\w\s]+)\s+\|/g
-
-  // Actually let's parse the structured data differently
-  // The timetable has patterns like:
-  // [**Train Name**: NUMBER](link) ... **HH:MM** StationFrom | **HH:MM** StationTo | duration | Days
-  
-  // Better approach: split by train entries
-  const entryPattern = /\[?\*\*([^*]+)\*\*[:\s]*(\d+)\]?\([^)]*\)[^|]*\|\s*\*\*(\d{2}:\d{2})\*\*\s+([A-Za-z\u0027]+)\s*\|\s*\*\*(\d{2}:\d{2})(?:\+\d)?\*\*\s+([A-Za-z\u0027]+)\s*\|\s*[\dh\s\dm]+\s*\|\s*([^|]+)\|/gi
-
-  let match
-  while ((match = entryPattern.exec(html)) !== null) {
-    const trainName = match[1].trim()
-    const trainNumber = match[2]
-    const depTime = match[3]
-    const depStation = normalizeStation(match[4])
-    const arrTime = match[5]
-    const arrStation = normalizeStation(match[6])
-    const frequency = match[7].trim()
-
-    trains.push({
-      name: trainName,
-      number: trainNumber,
-      type: classifyTrain(trainName),
-      from: depStation,
-      to: arrStation,
-      depTime,
-      arrTime,
-      frequency,
-    })
-  }
-
-  return trains
-}
-
-// Hardcoded train schedule data based on the current timetable
-// This serves as fallback when scraping fails, and is the primary data source
-// Last updated: Feb 2026 from advantour.com/uzbekistan/trains/timetable.htm
-function getStaticSchedule() {
-  return [
-    // === AFROSIYOB TRAINS ===
-    // 771: Bukhara → Tashkent (daily)
-    { name: 'Afrosiyob', number: '771', type: 'afrosiyob', from: 'Buxoro', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '771', type: 'afrosiyob', from: 'Buxoro', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '771', type: 'afrosiyob', from: 'Buxoro', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '771', type: 'afrosiyob', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '771', type: 'afrosiyob', from: 'Navoiy', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '771', type: 'afrosiyob', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    // 774: Tashkent → Samarkand (daily)
-    { name: 'Afrosiyob', number: '774', type: 'afrosiyob', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    // 764: Tashkent → Karshi (daily)
-    { name: 'Afrosiyob', number: '764', type: 'afrosiyob', from: 'Toshkent', to: 'Qarshi', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '764', type: 'afrosiyob', from: 'Samarqand', to: 'Qarshi', frequency: 'Daily' },
-    // 766: Tashkent → Samarkand (daily)
-    { name: 'Afrosiyob', number: '766', type: 'afrosiyob', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    // 768: Tashkent → Bukhara (daily)
-    { name: 'Afrosiyob', number: '768', type: 'afrosiyob', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '768', type: 'afrosiyob', from: 'Toshkent', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '768', type: 'afrosiyob', from: 'Toshkent', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '768', type: 'afrosiyob', from: 'Samarqand', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '768', type: 'afrosiyob', from: 'Samarqand', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '768', type: 'afrosiyob', from: 'Navoiy', to: 'Buxoro', frequency: 'Daily' },
-    // 770: Tashkent → Bukhara (daily)
-    { name: 'Afrosiyob', number: '770', type: 'afrosiyob', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '770', type: 'afrosiyob', from: 'Toshkent', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '770', type: 'afrosiyob', from: 'Toshkent', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '770', type: 'afrosiyob', from: 'Samarqand', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '770', type: 'afrosiyob', from: 'Samarqand', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '770', type: 'afrosiyob', from: 'Navoiy', to: 'Buxoro', frequency: 'Daily' },
-    // 778: Tashkent → Bukhara (Fri/Sat/Sun only)
-    { name: 'Afrosiyob', number: '778', type: 'afrosiyob', from: 'Toshkent', to: 'Samarqand', frequency: 'Fr Sa Su' },
-    { name: 'Afrosiyob', number: '778', type: 'afrosiyob', from: 'Toshkent', to: 'Buxoro', frequency: 'Fr Sa Su' },
-    { name: 'Afrosiyob', number: '778', type: 'afrosiyob', from: 'Toshkent', to: 'Navoiy', frequency: 'Fr Sa Su' },
-    { name: 'Afrosiyob', number: '778', type: 'afrosiyob', from: 'Samarqand', to: 'Buxoro', frequency: 'Fr Sa Su' },
-    { name: 'Afrosiyob', number: '778', type: 'afrosiyob', from: 'Samarqand', to: 'Navoiy', frequency: 'Fr Sa Su' },
-    { name: 'Afrosiyob', number: '778', type: 'afrosiyob', from: 'Navoiy', to: 'Buxoro', frequency: 'Fr Sa Su' },
-    // 769: Bukhara → Tashkent (daily)
-    { name: 'Afrosiyob', number: '769', type: 'afrosiyob', from: 'Buxoro', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '769', type: 'afrosiyob', from: 'Buxoro', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '769', type: 'afrosiyob', from: 'Buxoro', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '769', type: 'afrosiyob', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '769', type: 'afrosiyob', from: 'Navoiy', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '769', type: 'afrosiyob', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    // 767: Bukhara → Tashkent (daily)
-    { name: 'Afrosiyob', number: '767', type: 'afrosiyob', from: 'Buxoro', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '767', type: 'afrosiyob', from: 'Buxoro', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '767', type: 'afrosiyob', from: 'Buxoro', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '767', type: 'afrosiyob', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '767', type: 'afrosiyob', from: 'Navoiy', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Afrosiyob', number: '767', type: 'afrosiyob', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-
-    // === SHARQ TRAINS ===
-    // 711: Bukhara → Tashkent (daily)
-    { name: 'Sharq', number: '711', type: 'sharq', from: 'Buxoro', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Sharq', number: '711', type: 'sharq', from: 'Buxoro', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Sharq', number: '711', type: 'sharq', from: 'Buxoro', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Sharq', number: '711', type: 'sharq', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Sharq', number: '711', type: 'sharq', from: 'Navoiy', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Sharq', number: '711', type: 'sharq', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    // 710: Tashkent → Bukhara (daily)
-    { name: 'Sharq', number: '710', type: 'sharq', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Sharq', number: '710', type: 'sharq', from: 'Toshkent', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Sharq', number: '710', type: 'sharq', from: 'Toshkent', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Sharq', number: '710', type: 'sharq', from: 'Samarqand', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Sharq', number: '710', type: 'sharq', from: 'Samarqand', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Sharq', number: '710', type: 'sharq', from: 'Navoiy', to: 'Buxoro', frequency: 'Daily' },
-    // 712: Samarkand → Bukhara (daily)
-    { name: 'Sharq', number: '712', type: 'sharq', from: 'Samarqand', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Sharq', number: '712', type: 'sharq', from: 'Samarqand', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Sharq', number: '712', type: 'sharq', from: 'Navoiy', to: 'Buxoro', frequency: 'Daily' },
-    // 709: Bukhara → Tashkent (daily)
-    { name: 'Sharq', number: '709', type: 'sharq', from: 'Buxoro', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Sharq', number: '709', type: 'sharq', from: 'Buxoro', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Sharq', number: '709', type: 'sharq', from: 'Buxoro', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Sharq', number: '709', type: 'sharq', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Sharq', number: '709', type: 'sharq', from: 'Navoiy', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Sharq', number: '709', type: 'sharq', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-
-    // === O'ZBEKISTON (PASSENGER) TRAINS ===
-    // 730: Tashkent → Andijan (daily)
-    { name: "O'zbekiston", number: '730', type: 'yolovchi', from: 'Toshkent', to: 'Andijon', frequency: 'Daily' },
-    { name: "O'zbekiston", number: '730', type: 'yolovchi', from: 'Toshkent', to: "Qo'qon", frequency: 'Daily' },
-    { name: "O'zbekiston", number: '730', type: 'yolovchi', from: 'Toshkent', to: 'Margilon', frequency: 'Daily' },
-    { name: "O'zbekiston", number: '730', type: 'yolovchi', from: "Qo'qon", to: 'Andijon', frequency: 'Daily' },
-    { name: "O'zbekiston", number: '730', type: 'yolovchi', from: 'Margilon', to: 'Andijon', frequency: 'Daily' },
-    // 729: Andijan → Tashkent (daily)
-    { name: "O'zbekiston", number: '729', type: 'yolovchi', from: 'Andijon', to: 'Toshkent', frequency: 'Daily' },
-    { name: "O'zbekiston", number: '729', type: 'yolovchi', from: 'Andijon', to: "Qo'qon", frequency: 'Daily' },
-    { name: "O'zbekiston", number: '729', type: 'yolovchi', from: 'Andijon', to: 'Margilon', frequency: 'Daily' },
-    { name: "O'zbekiston", number: '729', type: 'yolovchi', from: "Qo'qon", to: 'Toshkent', frequency: 'Daily' },
-    { name: "O'zbekiston", number: '729', type: 'yolovchi', from: 'Margilon', to: 'Toshkent', frequency: 'Daily' },
-    // 731: Andijan → Tashkent (Th Fr Sa Su)
-    { name: "O'zbekiston", number: '731', type: 'yolovchi', from: 'Andijon', to: 'Toshkent', frequency: 'Th Fr Sa Su' },
-    { name: "O'zbekiston", number: '731', type: 'yolovchi', from: 'Andijon', to: "Qo'qon", frequency: 'Th Fr Sa Su' },
-    { name: "O'zbekiston", number: '731', type: 'yolovchi', from: 'Andijon', to: 'Margilon', frequency: 'Th Fr Sa Su' },
-    { name: "O'zbekiston", number: '731', type: 'yolovchi', from: 'Margilon', to: 'Toshkent', frequency: 'Th Fr Sa Su' },
-    { name: "O'zbekiston", number: '731', type: 'yolovchi', from: "Qo'qon", to: 'Toshkent', frequency: 'Th Fr Sa Su' },
-
-    // === NIGHT TRAINS ===
-    // 54: Tashkent ↔ Nukus (daily)
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Toshkent', to: 'Nukus', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Toshkent', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Toshkent', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Nukus', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Nukus', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Nukus', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Nukus', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '54', type: 'yolovchi', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    // 56: Tashkent ↔ Urgench / Khiva (daily / partial)
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Toshkent', to: 'Urganch', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Toshkent', to: 'Xiva', frequency: 'We Th Sa Su' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Toshkent', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Toshkent', to: 'Navoiy', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Urganch', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Urganch', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Urganch', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Xiva', to: 'Toshkent', frequency: 'We Th Sa Su' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Xiva', to: 'Samarqand', frequency: 'We Th Sa Su' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Xiva', to: 'Buxoro', frequency: 'We Th Sa Su' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Xiva', to: 'Urganch', frequency: 'We Th Sa Su' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Samarqand', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Samarqand', to: 'Urganch', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Navoiy', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Navoiy', to: 'Urganch', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Navoiy', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Buxoro', to: 'Urganch', frequency: 'Daily' },
-    { name: 'Night Train', number: '56', type: 'yolovchi', from: 'Buxoro', to: 'Xiva', frequency: 'We Th Sa Su' },
-    // 58: Tashkent → Shovot/Urgench (Mo Tu Fr)
-    { name: 'Night Train', number: '58', type: 'yolovchi', from: 'Toshkent', to: 'Urganch', frequency: 'Mo Tu Fr' },
-    { name: 'Night Train', number: '58', type: 'yolovchi', from: 'Samarqand', to: 'Buxoro', frequency: 'Mo Tu Fr' },
-    { name: 'Night Train', number: '58', type: 'yolovchi', from: 'Samarqand', to: 'Urganch', frequency: 'Mo Tu Fr' },
-    { name: 'Night Train', number: '58', type: 'yolovchi', from: 'Samarqand', to: 'Toshkent', frequency: 'Tu We Sa' },
-    { name: 'Night Train', number: '58', type: 'yolovchi', from: 'Navoiy', to: 'Urganch', frequency: 'Mo Tu Fr' },
-    // 80: Tashkent ↔ Termez (daily)
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Toshkent', to: 'Termiz', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Toshkent', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Toshkent', to: 'Qarshi', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Samarqand', to: 'Termiz', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Samarqand', to: 'Qarshi', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Qarshi', to: 'Termiz', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Qarshi', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '80', type: 'yolovchi', from: 'Qarshi', to: 'Samarqand', frequency: 'Daily' },
-    // 82: Tashkent → Sariosiyo (daily)
-    { name: 'Night Train', number: '82', type: 'yolovchi', from: 'Toshkent', to: 'Qarshi', frequency: 'Daily' },
-    { name: 'Night Train', number: '82', type: 'yolovchi', from: 'Samarqand', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '82', type: 'yolovchi', from: 'Qarshi', to: 'Toshkent', frequency: 'Daily' },
-    // 125/126: Andijan ↔ Khiva (daily)
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Andijon', to: 'Xiva', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Andijon', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Andijon', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Andijon', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Samarqand', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Samarqand', to: 'Xiva', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Buxoro', to: 'Xiva', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: 'Buxoro', to: 'Urganch', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: "Qo'qon", to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: "Qo'qon", to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '125', type: 'yolovchi', from: "Qo'qon", to: 'Xiva', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Xiva', to: 'Andijon', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Xiva', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Xiva', to: 'Samarqand', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Xiva', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Xiva', to: "Qo'qon", frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Urganch', to: 'Buxoro', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Urganch', to: 'Toshkent', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Toshkent', to: 'Andijon', frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Toshkent', to: "Qo'qon", frequency: 'Daily' },
-    { name: 'Night Train', number: '126', type: 'yolovchi', from: 'Samarqand', to: 'Andijon', frequency: 'Daily' },
-  ]
-}
-
-// How many days per week a frequency string represents
-function daysPerWeek(freq) {
-  const f = (freq || '').toLowerCase().trim()
-  if (f === 'daily') return 7
-  // Count day abbreviations
-  const days = ['mo', 'tu', 'we', 'th', 'fr', 'sa', 'su']
-  let count = 0
-  for (const d of days) {
-    if (f.includes(d)) count++
-  }
-  return count || 7
-}
-
-// Aggregate schedule into route counts
-function aggregateRoutes(schedule) {
-  const TRACKED_ROUTES = [
-    { from: 'Toshkent', to: 'Samarqand' }, { from: 'Toshkent', to: 'Buxoro' },
-    { from: 'Toshkent', to: 'Xiva' },      { from: 'Toshkent', to: 'Urganch' },
-    { from: 'Toshkent', to: 'Nukus' },     { from: 'Toshkent', to: 'Navoiy' },
-    { from: 'Toshkent', to: 'Andijon' },   { from: 'Toshkent', to: 'Qarshi' },
-    { from: 'Toshkent', to: 'Jizzax' },    { from: 'Toshkent', to: 'Termiz' },
-    { from: 'Toshkent', to: 'Namangan' },  { from: 'Toshkent', to: "Qo'qon" },
-    { from: 'Toshkent', to: 'Margilon' },  { from: 'Toshkent', to: 'Guliston' },
-    { from: 'Samarqand', to: 'Toshkent' }, { from: 'Samarqand', to: 'Buxoro' },
-    { from: 'Samarqand', to: 'Navoiy' },   { from: 'Samarqand', to: 'Andijon' },
-    { from: 'Samarqand', to: 'Qarshi' },   { from: 'Samarqand', to: 'Termiz' },
-    { from: 'Buxoro', to: 'Toshkent' },    { from: 'Buxoro', to: 'Samarqand' },
-    { from: 'Buxoro', to: 'Navoiy' },      { from: 'Buxoro', to: 'Andijon' },
-    { from: 'Buxoro', to: 'Termiz' },      { from: 'Buxoro', to: 'Urganch' },
-    { from: 'Andijon', to: 'Toshkent' },   { from: 'Andijon', to: 'Samarqand' },
-    { from: 'Andijon', to: 'Buxoro' },     { from: 'Andijon', to: 'Navoiy' },
-    { from: 'Andijon', to: 'Qarshi' },     { from: 'Andijon', to: 'Termiz' },
-    { from: 'Namangan', to: 'Toshkent' },  { from: 'Namangan', to: 'Samarqand' },
-    { from: 'Namangan', to: 'Andijon' },
-  ]
-
-  return TRACKED_ROUTES.map(route => {
-    const matching = schedule.filter(t => t.from === route.from && t.to === route.to)
-    const counts = { total: 0, afrosiyob: 0, sharq: 0, tezkor: 0, yolovchi: 0 }
-
-    // Count weekly trains for this route
-    matching.forEach(t => {
-      const weeklyRuns = daysPerWeek(t.frequency)
-      counts.total += weeklyRuns
-      counts[t.type] += weeklyRuns
-    })
-
-    return {
-      from_station: route.from,
-      to_station: route.to,
-      ...counts,
+function cnt(from, to, dayIdx) {
+  let t=0,a=0,s=0,y=0
+  for (const [,,tp,f,tt,days] of S) {
+    if (f===from && tt===to && (days===null || days.includes(dayIdx))) {
+      t++
+      if (tp==='a') a++; else if (tp==='s') s++; else y++
     }
-  })
+  }
+  return {total:t,afrosiyob:a,sharq:s,tezkor:0,yolovchi:y}
+}
+
+function getNext7Days() {
+  const days = [], now = new Date()
+  const uzDays = ['Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba']
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(now); d.setDate(d.getDate()+i)
+    const dow = (d.getDay()+6)%7
+    days.push({
+      date: d.toISOString().split('T')[0],
+      dayOfWeek: dow,
+      labelEn: d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}),
+      labelUz: `${uzDays[dow]}, ${d.getDate()}-${d.toLocaleDateString('uz',{month:'short'})}`,
+    })
+  }
+  return days
+}
+
+function buildData() {
+  const days = getNext7Days()
+  let idx = 0
+  const hubGroups = []
+  const seen = new Set()
+
+  for (const hub of HUBS_ORDER) {
+    if (seen.has(hub.n)) continue; seen.add(hub.n); idx++
+    const routes = hub.d.map(dest => {
+      const perDay = days.map(d => cnt(hub.n, dest, d.dayOfWeek))
+      const weekly = {total:0,afrosiyob:0,sharq:0,tezkor:0,yolovchi:0}
+      perDay.forEach(p => { weekly.total+=p.total; weekly.afrosiyob+=p.afrosiyob; weekly.sharq+=p.sharq; weekly.yolovchi+=p.yolovchi })
+      return { from:hub.n, to:dest, routeName:`${hub.n}-${dest}`, weekly, perDay }
+    })
+    const hw = {total:0,afrosiyob:0,sharq:0,tezkor:0,yolovchi:0}
+    routes.forEach(r => { hw.total+=r.weekly.total; hw.afrosiyob+=r.weekly.afrosiyob; hw.sharq+=r.weekly.sharq; hw.yolovchi+=r.weekly.yolovchi })
+    hubGroups.push({ index:idx, hub:hub.n, hubWeekly:hw, routes })
+  }
+  return { days, hubGroups }
 }
 
 export const maxDuration = 60
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
-  const debug = searchParams.get('debug')
+  const fmt = searchParams.get('format')
+  const data = buildData()
 
-  // Use static schedule data (reliable, no API dependency)
-  const schedule = getStaticSchedule()
-  const routes = aggregateRoutes(schedule)
-
-  if (debug) {
-    return Response.json({
-      debug: true,
-      source: 'static_schedule',
-      note: 'Data compiled from advantour.com/uzbekistan/trains/timetable.htm — counts are weekly train runs per route',
-      totalTrainServices: schedule.length,
-      uniqueTrains: [...new Set(schedule.map(t => `${t.name} ${t.number}`))],
-      routes,
-      schedule,
-    })
+  if (fmt === 'csv') {
+    let csv = `T/p,Vokzallar,Yo'nalish nomi,Haftalik jami,shundan Afrosiyob`
+    for (const d of data.days) csv += `,${d.labelEn} - Jami,${d.labelEn} - Afrosiyob`
+    csv += '\n'
+    for (const hub of data.hubGroups) {
+      if (hub.routes.length === 0) {
+        csv += `${hub.index},${hub.hub},,${hub.hubWeekly.total},${hub.hubWeekly.afrosiyob}`
+        for (let i=0;i<data.days.length;i++) csv += ',,'
+        csv += '\n'
+      } else {
+        const mid = Math.floor(hub.routes.length/2)
+        hub.routes.forEach((r,i) => {
+          csv += `${i===mid?hub.index:''},${i===mid?hub.hub:''},${r.routeName},${r.weekly.total},${r.weekly.afrosiyob}`
+          r.perDay.forEach(p => { csv += `,${p.total},${p.afrosiyob}` })
+          csv += '\n'
+        })
+      }
+    }
+    return new Response(csv, { headers: { 'Content-Type':'text/csv;charset=utf-8', 'Content-Disposition':`attachment;filename="rail-intel-${new Date().toISOString().split('T')[0]}.csv"` } })
   }
 
-  return Response.json({
-    routes,
-    fetchedAt: new Date().toISOString(),
-    source: 'schedule',
-    note: 'Weekly train count per route based on current Uzbekistan Railways timetable',
-  })
+  const flatRoutes = []
+  for (const hub of data.hubGroups)
+    for (const r of hub.routes)
+      flatRoutes.push({ from:r.from, to:r.to, ...r.weekly, perDay:r.perDay })
+
+  return Response.json({ days:data.days, hubGroups:data.hubGroups, routes:flatRoutes, fetchedAt:new Date().toISOString() })
 }
