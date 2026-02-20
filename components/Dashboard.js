@@ -108,7 +108,6 @@ const styles = `
   ::-webkit-scrollbar { width: 4px; } ::-webkit-scrollbar-track { background: var(--bg); } ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 `
 
-const RAILWAY = 'https://eticket.railway.uz/api/v1'
 const HUBS = ['Barcha', 'Toshkent', 'Samarqand', 'Buxoro', 'Andijon', 'Namangan']
 const PAGE_SIZE = 12
 
@@ -127,14 +126,6 @@ const TRACKED_ROUTES = [
   ['Namangan','Toshkent'],  ['Namangan','Samarqand'], ['Namangan','Andijon'],
 ]
 
-function classify(name = '') {
-  const n = name.toLowerCase()
-  if (n.includes('afrosiyob')) return 'afrosiyob'
-  if (n.includes('sharq'))     return 'sharq'
-  if (n.includes('tezkor'))    return 'tezkor'
-  return 'yolovchi'
-}
-
 function csvDownload(rows) {
   const h = ['Dan','Ga','Jami','Afrosiyob','Sharq','Tezkor',"Yo'lovchi"]
   const body = rows.map(r => [r.from, r.to, r.total, r.afrosiyob, r.sharq, r.tezkor, r.yolovchi].join(','))
@@ -143,34 +134,6 @@ function csvDownload(rows) {
     href: URL.createObjectURL(blob),
     download: `rail-intel-${new Date().toISOString().split('T')[0]}.csv`
   }).click()
-}
-
-// Fetch trains for one route for the next 7 days — called from the browser
-async function fetchRouteFromBrowser(from, to) {
-  const counts = { total: 0, afrosiyob: 0, sharq: 0, tezkor: 0, yolovchi: 0 }
-  const today = new Date()
-
-  for (let day = 0; day < 7; day++) {
-    const d = new Date(today)
-    d.setDate(d.getDate() + day)
-    const dateStr = d.toISOString().split('T')[0]
-
-    try {
-      const res = await fetch(`${RAILWAY}/trains/list`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, to, date: dateStr }),
-      })
-      if (!res.ok) continue
-      const data = await res.json()
-      const trains = data.trains || data.data || data.list || data.items || []
-      trains.forEach(t => {
-        counts.total++
-        counts[classify(t.name || t.trainName || t.number || '')]++
-      })
-    } catch { /* skip */ }
-  }
-  return counts
 }
 
 export default function Dashboard() {
@@ -196,23 +159,34 @@ export default function Dashboard() {
     setLoading(true)
     setProgress(0)
     setRoutes([])
-    const results = []
+    setCurrentRoute('Server orqali yuklanmoqda...')
 
-    for (let i = 0; i < TRACKED_ROUTES.length; i++) {
-      const [from, to] = TRACKED_ROUTES[i]
-      setCurrentRoute(`${from} → ${to}`)
-      setProgress(Math.round((i / TRACKED_ROUTES.length) * 100))
+    try {
+      // Call our own API route which fetches from railway.uz server-side (no CORS issues)
+      const res = await fetch('/api/trains')
+      if (!res.ok) throw new Error(`API xatolik: ${res.status}`)
+      const data = await res.json()
 
-      const counts = await fetchRouteFromBrowser(from, to)
-      results.push({ from, to, ...counts })
-      // Update table progressively as each route comes in
-      setRoutes([...results])
+      const results = (data.routes || []).map(r => ({
+        from: r.from_station,
+        to: r.to_station,
+        total: r.total || 0,
+        afrosiyob: r.afrosiyob || 0,
+        sharq: r.sharq || 0,
+        tezkor: r.tezkor || 0,
+        yolovchi: r.yolovchi || 0,
+      }))
+
+      setRoutes(results)
+      setProgress(100)
+      setFetchedAt(new Date().toLocaleTimeString('uz'))
+      showToast(`✅ ${results.length} ta marshrut yuklandi!`)
+    } catch (err) {
+      console.error('Fetch error:', err)
+      showToast(`❌ Xatolik: ${err.message}`, true)
+    } finally {
+      setLoading(false)
     }
-
-    setProgress(100)
-    setFetchedAt(new Date().toLocaleTimeString('uz'))
-    setLoading(false)
-    showToast(`✅ ${results.length} ta marshrut yuklandi!`)
   }, [])
 
   function toggleSort(k) {
