@@ -37,8 +37,15 @@ async function getStationCode(name) {
   try {
     const res = await fetch(`${RAILWAY_API}/handbook/stations/list`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Origin': 'https://eticket.railway.uz',
+        'Referer': 'https://eticket.railway.uz/',
+        'User-Agent': 'Mozilla/5.0',
+      },
       body: JSON.stringify({ name }),
+      cache: 'no-store',
       signal: AbortSignal.timeout(8000),
     })
     if (!res.ok) return null
@@ -78,8 +85,10 @@ async function fetchRoute(fromCode, toCode, fromName, toName) {
             'Accept': 'application/json',
             'Origin': 'https://eticket.railway.uz',
             'Referer': 'https://eticket.railway.uz/',
+            'User-Agent': 'Mozilla/5.0',
           },
           body: JSON.stringify(payload),
+          cache: 'no-store',
           signal: AbortSignal.timeout(8000),
         })
         if (!res.ok) continue
@@ -123,10 +132,13 @@ export async function GET(request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'Origin': 'https://eticket.railway.uz',
           'Referer': 'https://eticket.railway.uz/',
+          'User-Agent': 'Mozilla/5.0',
         },
         body: JSON.stringify({ name: 'Toshkent' }),
+        cache: 'no-store',
       })
       const stData = await stRes.json()
 
@@ -135,10 +147,13 @@ export async function GET(request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Accept': 'application/json',
           'Origin': 'https://eticket.railway.uz',
           'Referer': 'https://eticket.railway.uz/',
+          'User-Agent': 'Mozilla/5.0',
         },
         body: JSON.stringify({ from: 'Toshkent', to: 'Samarqand', date: today }),
+        cache: 'no-store',
       })
       const trData = await trRes.json()
 
