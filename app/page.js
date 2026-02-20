@@ -23,9 +23,13 @@ async function getRouteData() {
     `
 
     return {
-      routes: rows,
-      weekStart: latest.week_start,
-      lastSync: lastSync?.finished_at || null
+      routes: rows.map(r => ({
+        ...r,
+        week_start: r.week_start?.toISOString?.().split('T')[0] ?? String(r.week_start),
+        created_at: r.created_at?.toISOString?.() ?? String(r.created_at),
+      })),
+      weekStart: latest.week_start?.toISOString?.().split('T')[0] ?? String(latest.week_start),
+      lastSync: lastSync?.finished_at?.toISOString?.() ?? null
     }
   } catch (err) {
     console.error('Failed to fetch route data:', err)
