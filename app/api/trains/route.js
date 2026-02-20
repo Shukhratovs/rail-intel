@@ -1,5 +1,5 @@
 // app/api/trains/route.js
-// Fetches live train data from eticket.railway.uz for a given route + date range (7 days)
+// Fetches live train data from eticket.railway.uz
 
 const RAILWAY_API = 'https://eticket.railway.uz/api/v1'
 
@@ -32,7 +32,27 @@ function classifyTrain(name = '') {
   return 'yolovchi'
 }
 
-async function fetchRoute(from, to) {
+// Get station code from name — railway.uz uses numeric station codes
+async function getStationCode(name) {
+  try {
+    const res = await fetch(`${RAILWAY_API}/handbook/stations/list`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+      signal: AbortSignal.timeout(8000),
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    // API returns list of stations — find exact match
+    const stations = data.list || data.data || data || []
+    const match = stations.find(s =>
+      (s.name || s.nameRu || s.nameUz || '').toLowerCase().includes(name.toLowerCase())
+    )
+    return match?.id || match?.code || match?.stationId || null
+  } catch { return null }
+}
+
+async function fetchRoute(fromCode, toCode, fromName, toName) {
   const counts = { total: 0, afrosiyob: 0, sharq: 0, tezkor: 0, yolovchi: 0 }
   const today = new Date()
 
@@ -41,43 +61,106 @@ async function fetchRoute(from, to) {
     d.setDate(d.getDate() + day)
     const dateStr = d.toISOString().split('T')[0]
 
-    try {
-      const res = await fetch(`${RAILWAY_API}/trains/list`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from, to, date: dateStr }),
-        signal: AbortSignal.timeout(8000),
-      })
-      if (!res.ok) continue
-      const data = await res.json()
-      const trains = data.trains || data.data || data.list || []
-      trains.forEach(t => {
-        counts.total++
-        counts[classifyTrain(t.name || t.trainName || '')]++
-      })
-    } catch { /* skip failed days */ }
+    // Try multiple payload formats since we're reverse-engineering the API
+    const payloads = [
+      { from: fromCode, to: toCode, date: dateStr },
+      { fromId: fromCode, toId: toCode, date: dateStr },
+      { departure: fromName, destination: toName, date: dateStr },
+      { from: fromName, to: toName, date: dateStr },
+    ]
+
+    for (const payload of payloads) {
+      try {
+        const res = await fetch(`${RAILWAY_API}/trains/list`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Origin': 'https://eticket.railway.uz',
+            'Referer': 'https://eticket.railway.uz/',
+          },
+          body: JSON.stringify(payload),
+          signal: AbortSignal.timeout(8000),
+        })
+        if (!res.ok) continue
+        const data = await res.json()
+        const trains = data.trains || data.data || data.list || data.items || []
+        if (trains.length > 0) {
+          trains.forEach(t => {
+            counts.total++
+            counts[classifyTrain(t.name || t.trainName || t.trainNumber || '')]++
+          })
+          break // Found data with this payload format, stop trying others
+        }
+      } catch { continue }
+    }
   }
   return counts
 }
 
+// Cache station codes to avoid re-fetching
+const stationCache = {}
+
+async function getCode(name) {
+  if (stationCache[name] !== undefined) return stationCache[name]
+  const code = await getStationCode(name)
+  stationCache[name] = code
+  return code
+}
+
+export const maxDuration = 300
+
 export async function GET(request) {
   const { searchParams } = new URL(request.url)
-  const from = searchParams.get('from')
-  const to = searchParams.get('to')
+  const debug = searchParams.get('debug')
 
-  // Single route fetch
-  if (from && to) {
-    const counts = await fetchRoute(from, to)
-    return Response.json({ from, to, ...counts })
+  // Debug endpoint — returns raw API response to help diagnose format
+  if (debug) {
+    const today = new Date().toISOString().split('T')[0]
+    try {
+      // First get stations list
+      const stRes = await fetch(`${RAILWAY_API}/handbook/stations/list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': 'https://eticket.railway.uz',
+          'Referer': 'https://eticket.railway.uz/',
+        },
+        body: JSON.stringify({ name: 'Toshkent' }),
+      })
+      const stData = await stRes.json()
+
+      // Then try trains list
+      const trRes = await fetch(`${RAILWAY_API}/trains/list`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Origin': 'https://eticket.railway.uz',
+          'Referer': 'https://eticket.railway.uz/',
+        },
+        body: JSON.stringify({ from: 'Toshkent', to: 'Samarqand', date: today }),
+      })
+      const trData = await trRes.json()
+
+      return Response.json({
+        stationsResponse: stData,
+        trainsResponse: trData,
+        date: today
+      })
+    } catch (e) {
+      return Response.json({ error: e.message })
+    }
   }
 
-  // All routes — fetch in parallel batches of 5 to avoid hammering the API
+  // Fetch all routes
   const results = []
   for (let i = 0; i < TRACKED_ROUTES.length; i += 5) {
     const batch = TRACKED_ROUTES.slice(i, i + 5)
     const batchResults = await Promise.all(
       batch.map(async r => {
-        const counts = await fetchRoute(r.from, r.to)
+        const fromCode = await getCode(r.from)
+        const toCode = await getCode(r.to)
+        const counts = await fetchRoute(fromCode, toCode, r.from, r.to)
         return { from_station: r.from, to_station: r.to, ...counts }
       })
     )
