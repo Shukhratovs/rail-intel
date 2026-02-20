@@ -194,25 +194,25 @@ export default function Dashboard() {
 
   const fetchAll = useCallback(async () => {
     setLoading(true)
-    setProgress(15)
+    setProgress(0)
     setRoutes([])
-    setCurrentRoute('Serverdan ma’lumot olinmoqda...')
+    const results = []
 
-    try {
-      const res = await fetch('/api/trains', { cache: 'no-store' })
-      if (!res.ok) throw new Error(`API error: ${res.status}`)
-      const data = await res.json()
+    for (let i = 0; i < TRACKED_ROUTES.length; i++) {
+      const [from, to] = TRACKED_ROUTES[i]
+      setCurrentRoute(`${from} → ${to}`)
+      setProgress(Math.round((i / TRACKED_ROUTES.length) * 100))
 
-      setRoutes(data.routes || [])
-      setFetchedAt(new Date().toLocaleTimeString('uz'))
-      setProgress(100)
-      showToast(`✅ ${(data.routes || []).length} ta marshrut yuklandi!`)
-    } catch (e) {
-      showToast(`❌ Xatolik: ${e.message}`, true)
-    } finally {
-      setLoading(false)
-      setCurrentRoute('')
+      const counts = await fetchRouteFromBrowser(from, to)
+      results.push({ from, to, ...counts })
+      // Update table progressively as each route comes in
+      setRoutes([...results])
     }
+
+    setProgress(100)
+    setFetchedAt(new Date().toLocaleTimeString('uz'))
+    setLoading(false)
+    showToast(`✅ ${results.length} ta marshrut yuklandi!`)
   }, [])
 
   function toggleSort(k) {
