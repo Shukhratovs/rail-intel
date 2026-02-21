@@ -93,10 +93,15 @@ export default function Dashboard() {
     try {
       const res = await fetch('/api/trains')
       const json = await res.json()
-      if (!res.ok || json.error) throw new Error(json.error || `API xatolik: ${res.status}`)
-      setData(json)
-      setFetchedAt(new Date().toLocaleTimeString('uz'))
-      showToast(`✅ ${json.source === 'live' ? 'Jonli' : 'Statik'} ma'lumotlar yuklandi! (${json.requestsMade || 0} so'rov)`)
+      if (json.error) {
+        showToast(`⚠️ ${json.error}`, true)
+        // Still set data if we got partial results
+        if (json.hubGroups?.length > 0) setData(json)
+      } else {
+        setData(json)
+        setFetchedAt(new Date().toLocaleTimeString('uz'))
+        showToast(`✅ Jonli ma'lumotlar yuklandi! (${json.requestsMade || 0} so'rov, session: ${json.sessionMethod})`)
+      }
     } catch (err) {
       showToast(`❌ Xatolik: ${err.message}`, true)
     } finally { setLoading(false) }

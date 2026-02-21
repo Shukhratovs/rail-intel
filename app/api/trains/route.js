@@ -1,295 +1,217 @@
 // app/api/trains/route.js
-// Live data from eticket.railway.uz with static fallback
+// Verified schedule from seat61.com (Jan 2026) + eticket.railway.uz
+// Each: [trainNum, type, from, to, days]  null=daily, array=0Mon..6Sun
 
-// Station codes for all major stations
-const STATIONS = {
-  'Toshkent':   '2900000',
-  'Samarqand':  '2900680',
-  'Buxoro':     '2900750',
-  'Navoiy':     '2900730',
-  'Qarshi':     '2900790',
-  'Termiz':     '2900840',
-  'Xiva':       '2900930',
-  'Urganch':    '2900920',
-  'Nukus':      '2900950',
-  'Andijon':    '2900200',
-  'Namangan':   '2900150',
-  "Qo'qon":    '2900250',
-  'Margilon':   '2900220',
-  'Jizzax':     '2900640',
-  'Guliston':   '2900600',
-  'Pop':        '2900130',
-  'Angren':     '2900080',
-}
+const D = null // daily
+const T = [
+  // =============================================
+  // TASHKENT → SAMARKAND / BUXORO / XIVA direction
+  // =============================================
+  // 778 Afrosiyob Sat,Sun - Tashkent→Samarkand
+  ['778','A','Toshkent','Samarqand',[5,6]],
+  // 764 Afrosiyob daily - Tashkent→Samarkand→Qarshi
+  ['764','A','Toshkent','Samarqand',D],['764','A','Toshkent','Qarshi',D],['764','A','Samarqand','Qarshi',D],
+  // 766 Afrosiyob daily - Tashkent→Samarkand→(Navoiy→Buxoro per eticket.railway.uz)
+  ['766','A','Toshkent','Samarqand',D],['766','A','Toshkent','Navoiy',D],['766','A','Toshkent','Buxoro',D],
+  ['766','A','Samarqand','Navoiy',D],['766','A','Samarqand','Buxoro',D],['766','A','Navoiy','Buxoro',D],
+  // 768 Afrosiyob daily - Tashkent→Samarkand (verified: does NOT continue to Buxoro)
+  ['768','A','Toshkent','Samarqand',D],
+  // 770 Afrosiyob daily - Tashkent→Samarkand→Navoiy→Buxoro
+  ['770','A','Toshkent','Samarqand',D],['770','A','Toshkent','Navoiy',D],['770','A','Toshkent','Buxoro',D],
+  ['770','A','Samarqand','Navoiy',D],['770','A','Samarqand','Buxoro',D],['770','A','Navoiy','Buxoro',D],
+  // 710 Sharq daily - Tashkent→Samarkand→Navoiy→Buxoro
+  ['710','S','Toshkent','Samarqand',D],['710','S','Toshkent','Navoiy',D],['710','S','Toshkent','Buxoro',D],
+  ['710','S','Samarqand','Navoiy',D],['710','S','Samarqand','Buxoro',D],['710','S','Navoiy','Buxoro',D],
+  // 054 Night daily - Tashkent→Samarkand→Buxoro→(Nukus branch)
+  ['054','Y','Toshkent','Samarqand',D],['054','Y','Toshkent','Buxoro',D],['054','Y','Toshkent','Navoiy',D],['054','Y','Toshkent','Nukus',D],
+  ['054','Y','Samarqand','Buxoro',D],['054','Y','Samarqand','Nukus',D],['054','Y','Buxoro','Nukus',D],['054','Y','Navoiy','Nukus',D],
+  // 772 Afrosiyob daily - Tashkent→Samarkand→Navoiy→Buxoro (evening)
+  ['772','A','Toshkent','Samarqand',D],['772','A','Toshkent','Navoiy',D],['772','A','Toshkent','Buxoro',D],
+  ['772','A','Samarqand','Navoiy',D],['772','A','Samarqand','Buxoro',D],['772','A','Navoiy','Buxoro',D],
+  // 712 Sharq daily - Tashkent→Samarkand→Navoiy→Buxoro (evening)
+  ['712','S','Toshkent','Samarqand',D],['712','S','Toshkent','Navoiy',D],['712','S','Toshkent','Buxoro',D],
+  ['712','S','Samarqand','Navoiy',D],['712','S','Samarqand','Buxoro',D],['712','S','Navoiy','Buxoro',D],
+  // 056 Night Tue,Wed,Fri,Sat - Tashkent→Samarkand→Buxoro→Urganch→Xiva
+  ['056','Y','Toshkent','Samarqand',[1,2,4,5]],['056','Y','Toshkent','Buxoro',[1,2,4,5]],['056','Y','Toshkent','Navoiy',[1,2,4,5]],
+  ['056','Y','Toshkent','Urganch',[1,2,4,5]],['056','Y','Toshkent','Xiva',[1,2,4,5]],
+  ['056','Y','Samarqand','Buxoro',[1,2,4,5]],['056','Y','Samarqand','Urganch',[1,2,4,5]],
+  ['056','Y','Buxoro','Urganch',[1,2,4,5]],['056','Y','Buxoro','Xiva',[1,2,4,5]],['056','Y','Urganch','Xiva',[1,2,4,5]],
+  // 058 Night Mon,Thu,Sun - Tashkent→Samarkand→Buxoro→Urganch
+  ['058','Y','Toshkent','Samarqand',[0,3,6]],['058','Y','Toshkent','Buxoro',[0,3,6]],['058','Y','Toshkent','Navoiy',[0,3,6]],
+  ['058','Y','Toshkent','Urganch',[0,3,6]],
+  ['058','Y','Samarqand','Buxoro',[0,3,6]],['058','Y','Samarqand','Urganch',[0,3,6]],
+  ['058','Y','Buxoro','Urganch',[0,3,6]],
+  // 125 Night Mon,Tue,Fri,Sat - via Fergana valley→Samarkand→Buxoro→Urganch→Xiva
+  ['125','Y','Toshkent','Samarqand',[0,1,4,5]],['125','Y','Toshkent','Buxoro',[0,1,4,5]],
+  ['125','Y','Toshkent','Urganch',[0,1,4,5]],['125','Y','Toshkent','Xiva',[0,1,4,5]],
+  ['125','Y','Samarqand','Buxoro',[0,1,4,5]],['125','Y','Samarqand','Xiva',[0,1,4,5]],
+  ['125','Y','Buxoro','Urganch',[0,1,4,5]],['125','Y','Buxoro','Xiva',[0,1,4,5]],
+  // 072 Night daily (verified eticket.railway.uz) - Tashkent→Samarkand→Buxoro
+  ['072','Y','Toshkent','Samarqand',D],['072','Y','Toshkent','Buxoro',D],['072','Y','Toshkent','Navoiy',D],
+  ['072','Y','Samarqand','Buxoro',D],
 
-// Hub ordering matching the Excel
-const HUBS_ORDER = [
-  { n:'Toshkent', d:['Samarqand','Buxoro','Xiva','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan'] },
-  { n:'Guliston', d:[] }, { n:'Jizzax', d:[] }, { n:'Angren', d:[] },
-  { n:'Andijon', d:['Toshkent','Samarqand','Buxoro','Xiva','Urganch','Navoiy','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan'] },
-  { n:'Namangan', d:[] }, { n:'Margilon', d:[] }, { n:"Qo'qon", d:[] }, { n:'Pop', d:[] },
-  { n:'Samarqand', d:['Toshkent','Buxoro','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan','Xiva'] },
-  { n:'Buxoro', d:['Toshkent','Samarqand','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Xiva'] },
-  { n:'Navoiy', d:['Toshkent','Samarqand','Buxoro','Urganch','Nukus'] },
-  { n:'Qarshi', d:['Toshkent','Samarqand','Termiz'] },
-  { n:'Nukus', d:['Toshkent','Samarqand','Buxoro','Navoiy'] },
-  { n:'Urganch', d:['Toshkent','Samarqand','Buxoro'] },
-  { n:'Xiva', d:['Toshkent','Samarqand','Buxoro','Andijon',"Qo'qon",'Urganch'] },
+  // =============================================
+  // RETURN: BUXORO / SAMARKAND → TASHKENT direction
+  // =============================================
+  // 771 Afrosiyob daily - Buxoro→Navoiy→Samarkand→Tashkent
+  ['771','A','Buxoro','Navoiy',D],['771','A','Buxoro','Samarqand',D],['771','A','Buxoro','Toshkent',D],
+  ['771','A','Navoiy','Samarqand',D],['771','A','Navoiy','Toshkent',D],['771','A','Samarqand','Toshkent',D],
+  // 711 Sharq daily
+  ['711','S','Buxoro','Navoiy',D],['711','S','Buxoro','Samarqand',D],['711','S','Buxoro','Toshkent',D],
+  ['711','S','Navoiy','Samarqand',D],['711','S','Navoiy','Toshkent',D],['711','S','Samarqand','Toshkent',D],
+  // 769 Afrosiyob daily
+  ['769','A','Buxoro','Navoiy',D],['769','A','Buxoro','Samarqand',D],['769','A','Buxoro','Toshkent',D],
+  ['769','A','Navoiy','Samarqand',D],['769','A','Navoiy','Toshkent',D],['769','A','Samarqand','Toshkent',D],
+  // 765 Afrosiyob daily - Samarkand→Tashkent (no Buxoro stop going east)
+  ['765','A','Samarqand','Toshkent',D],
+  // 767 Afrosiyob daily - Buxoro→Samarkand→Tashkent
+  ['767','A','Buxoro','Navoiy',D],['767','A','Buxoro','Samarqand',D],['767','A','Buxoro','Toshkent',D],
+  ['767','A','Navoiy','Samarqand',D],['767','A','Navoiy','Toshkent',D],['767','A','Samarqand','Toshkent',D],
+  // 763 Afrosiyob daily - Qarshi→Samarkand→Tashkent
+  ['763','A','Qarshi','Samarqand',D],['763','A','Qarshi','Toshkent',D],['763','A','Samarqand','Toshkent',D],
+  // 709 Sharq daily
+  ['709','S','Buxoro','Navoiy',D],['709','S','Buxoro','Samarqand',D],['709','S','Buxoro','Toshkent',D],
+  ['709','S','Navoiy','Samarqand',D],['709','S','Navoiy','Toshkent',D],['709','S','Samarqand','Toshkent',D],
+  // 054 Night return (except Tue)
+  ['054','Y','Nukus','Buxoro',[0,2,3,4,5,6]],['054','Y','Nukus','Samarqand',[0,2,3,4,5,6]],['054','Y','Nukus','Toshkent',[0,2,3,4,5,6]],['054','Y','Nukus','Navoiy',[0,2,3,4,5,6]],
+  ['054','Y','Buxoro','Samarqand',[0,2,3,4,5,6]],['054','Y','Buxoro','Toshkent',[0,2,3,4,5,6]],
+  ['054','Y','Samarqand','Toshkent',[0,2,3,4,5,6]],['054','Y','Navoiy','Toshkent',[0,2,3,4,5,6]],
+  // 056 Night return Wed,Thu,Sat,Sun
+  ['056','Y','Xiva','Urganch',[2,3,5,6]],['056','Y','Xiva','Buxoro',[2,3,5,6]],['056','Y','Xiva','Samarqand',[2,3,5,6]],['056','Y','Xiva','Toshkent',[2,3,5,6]],
+  ['056','Y','Urganch','Buxoro',[2,3,5,6]],['056','Y','Urganch','Samarqand',[2,3,5,6]],['056','Y','Urganch','Toshkent',[2,3,5,6]],
+  ['056','Y','Buxoro','Samarqand',[2,3,5,6]],['056','Y','Buxoro','Toshkent',[2,3,5,6]],
+  ['056','Y','Samarqand','Toshkent',[2,3,5,6]],
+  // 058 Night return Mon,Tue,Fri
+  ['058','Y','Urganch','Buxoro',[0,1,4]],['058','Y','Urganch','Samarqand',[0,1,4]],['058','Y','Urganch','Toshkent',[0,1,4]],
+  ['058','Y','Buxoro','Samarqand',[0,1,4]],['058','Y','Buxoro','Toshkent',[0,1,4]],
+  ['058','Y','Samarqand','Toshkent',[0,1,4]],
+  // 126 Night return Tue,Wed,Sat,Sun
+  ['126','Y','Xiva','Urganch',[1,2,5,6]],['126','Y','Xiva','Buxoro',[1,2,5,6]],['126','Y','Xiva','Samarqand',[1,2,5,6]],['126','Y','Xiva','Toshkent',[1,2,5,6]],
+  ['126','Y','Urganch','Buxoro',[1,2,5,6]],['126','Y','Urganch','Toshkent',[1,2,5,6]],
+  ['126','Y','Buxoro','Samarqand',[1,2,5,6]],
+  ['126','Y','Samarqand','Toshkent',[1,2,5,6]],
+
+  // =============================================
+  // TASHKENT ↔ FERGANA VALLEY (Andijon, Namangan, etc.)
+  // =============================================
+  // 730 Yo'lovchi daily Tashkent→Andijon
+  ['730','Y','Toshkent','Andijon',D],['730','Y','Toshkent',"Qo'qon",D],['730','Y','Toshkent','Margilon',D],['730','Y','Toshkent','Namangan',D],
+  // 729 Yo'lovchi daily Andijon→Tashkent
+  ['729','Y','Andijon','Toshkent',D],['729','Y',"Qo'qon",'Toshkent',D],['729','Y','Margilon','Toshkent',D],['729','Y','Namangan','Toshkent',D],
+
+  // =============================================
+  // TASHKENT ↔ TERMIZ
+  // =============================================
+  // 080 Yo'lovchi daily Termiz→Qarshi→Samarkand→Tashkent
+  ['080','Y','Termiz','Toshkent',D],['080','Y','Termiz','Samarqand',D],['080','Y','Termiz','Qarshi',D],
+  ['080','Y','Qarshi','Toshkent',D],['080','Y','Qarshi','Samarqand',D],['080','Y','Samarqand','Toshkent',D],
+  // 082 Yo'lovchi Qarshi→Tashkent (via Sariosiyo→Tashkent janubiy)
+  ['082','Y','Qarshi','Toshkent',D],['082','Y','Qarshi','Samarqand',D],
+  // 703 Nasaf daily Qarshi→Tashkent
+  ['703','N','Qarshi','Toshkent',D],
+  // 130 Passenger Termiz→Andijon direction
+  ['130','Y','Termiz','Toshkent',D],['130','Y','Termiz','Qarshi',D],['130','Y','Qarshi','Toshkent',D],
+
+  // =============================================
+  // TASHKENT ↔ JIZZAX / GULISTON
+  // =============================================
+  // Jizzax and Guliston are intermediate stops on Tashkent-Samarkand trains
+  // Not separately counted (passengers use Afrosiyob/Sharq stopping there)
+
+  // =============================================
+  // ANDIJON region internal
+  // =============================================
+  ['729','Y','Andijon',"Qo'qon",D],['729','Y','Andijon','Margilon',D],['729','Y','Andijon','Namangan',D],
+  ['730','Y',"Qo'qon",'Andijon',D],['730','Y','Margilon','Andijon',D],['730','Y','Namangan','Andijon',D],
 ]
 
-const TRAIN_API = 'https://eticket.railway.uz/api/v3/handbook/trains/list'
-const HOME_URL = 'https://eticket.railway.uz/en/home'
+// Hubs and destinations (Excel order)
+const HUBS = [
+  {n:'Toshkent',d:['Samarqand','Buxoro','Xiva','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan']},
+  {n:'Guliston',d:[]},{n:'Jizzax',d:[]},{n:'Angren',d:[]},
+  {n:'Andijon',d:['Toshkent','Samarqand','Buxoro','Xiva','Urganch','Navoiy','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan']},
+  {n:'Namangan',d:['Toshkent','Andijon']},{n:'Margilon',d:['Toshkent','Andijon']},{n:"Qo'qon",d:['Toshkent','Andijon']},{n:'Pop',d:[]},
+  {n:'Samarqand',d:['Toshkent','Buxoro','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Pop','Namangan','Xiva']},
+  {n:'Buxoro',d:['Toshkent','Samarqand','Urganch','Nukus','Navoiy','Andijon','Qarshi','Jizzax','Termiz','Guliston',"Qo'qon",'Margilon','Xiva']},
+  {n:'Navoiy',d:['Toshkent','Samarqand','Buxoro','Urganch','Nukus']},
+  {n:'Qarshi',d:['Toshkent','Samarqand','Termiz']},
+  {n:'Nukus',d:['Toshkent','Samarqand','Buxoro','Navoiy']},
+  {n:'Urganch',d:['Toshkent','Samarqand','Buxoro']},
+  {n:'Xiva',d:['Toshkent','Samarqand','Buxoro','Andijon',"Qo'qon",'Urganch']},
+]
 
-// Step 1: Get session cookies from homepage
-async function getSession() {
-  try {
-    const res = await fetch(HOME_URL, {
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.5',
-      },
-      redirect: 'follow',
-    })
-    const cookies = res.headers.getSetCookie?.() || []
-    // Fallback for environments where getSetCookie isn't available
-    const cookieHeader = res.headers.get('set-cookie') || ''
-    
-    let allCookies = []
-    if (cookies.length > 0) {
-      allCookies = cookies
-    } else if (cookieHeader) {
-      allCookies = cookieHeader.split(/,(?=\s*\w+=)/)
+function cnt(from,to,dow) {
+  let tot=0,a=0,s=0,n=0,y=0
+  const seen = new Set()
+  for (const [num,tp,f,t,days] of T) {
+    if (f===from && t===to && (days===null||days.includes(dow))) {
+      // Deduplicate: same train number on same route counts once
+      const k = `${num}-${f}-${t}`
+      if (seen.has(k)) continue
+      seen.add(k)
+      tot++
+      if (tp==='A') a++; else if (tp==='S') s++; else if (tp==='N') n++; else y++
     }
-    
-    const cookieMap = {}
-    for (const c of allCookies) {
-      const match = c.match(/^([^=]+)=([^;]+)/)
-      if (match) cookieMap[match[1].trim()] = match[2].trim()
-    }
-    
-    const xsrf = cookieMap['XSRF-TOKEN'] || ''
-    const jsession = cookieMap['JSESSIONID'] || ''
-    
-    // Build cookie string
-    const cookieParts = []
-    for (const [k, v] of Object.entries(cookieMap)) {
-      cookieParts.push(`${k}=${v}`)
-    }
-    
-    return { cookieStr: cookieParts.join('; '), xsrf, jsession, ok: !!xsrf }
-  } catch (err) {
-    console.error('Session error:', err.message)
-    return { cookieStr: '', xsrf: '', jsession: '', ok: false }
   }
+  return {total:tot,afrosiyob:a,sharq:s,tezkor:n,yolovchi:y}
 }
 
-// Step 2: Fetch trains for a specific route and date
-async function fetchTrains(session, depCode, arvCode, date) {
-  try {
-    const res = await fetch(TRAIN_API, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json',
-        'Accept-Language': 'uz',
-        'Content-Type': 'application/json',
-        'Cookie': session.cookieStr,
-        'X-XSRF-TOKEN': session.xsrf,
-        'Origin': 'https://eticket.railway.uz',
-        'Referer': 'https://eticket.railway.uz/en/home',
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-      body: JSON.stringify({
-        directions: {
-          forward: { date, depStationCode: depCode, arvStationCode: arvCode }
-        }
-      }),
-    })
-    
-    const contentType = res.headers.get('content-type') || ''
-    if (!contentType.includes('json')) {
-      console.error(`Non-JSON response for ${depCode}->${arvCode}: ${contentType}`)
-      return []
-    }
-    
-    const json = await res.json()
-    const trains = json?.data?.directions?.forward?.trains || []
-    return trains
-  } catch (err) {
-    console.error(`Fetch error ${depCode}->${arvCode}:`, err.message)
-    return []
-  }
-}
-
-// Classify train type
-function classifyTrain(train) {
-  const type = (train.type || '').toLowerCase()
-  const name = (train.name || '').toLowerCase()
-  if (type.includes('afrosiyob') || name.includes('afrosiyob')) return 'afrosiyob'
-  if (type.includes('sharq') || name.includes('sharq')) return 'sharq'
-  if (type.includes('nasaf') || type.includes('tezkor') || name.includes('nasaf')) return 'tezkor'
-  return 'yolovchi'
-}
-
-// Get next 7 dates starting from today
-function getNext7Days() {
-  const days = []
-  const uzDays = ['Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba']
-  const now = new Date()
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(now); d.setDate(d.getDate() + i)
-    const dow = (d.getDay() + 6) % 7
-    const yyyy = d.getFullYear()
-    const mm = String(d.getMonth()+1).padStart(2,'0')
-    const dd = String(d.getDate()).padStart(2,'0')
-    days.push({
-      date: `${yyyy}-${mm}-${dd}`,
-      dayOfWeek: dow,
-      labelEn: d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}),
-      labelUz: `${uzDays[dow]}, ${d.getDate()}-${d.toLocaleDateString('uz',{month:'short'})}`,
-    })
+function get7Days() {
+  const days=[],uz=['Dushanba','Seshanba','Chorshanba','Payshanba','Juma','Shanba','Yakshanba'],now=new Date()
+  for(let i=0;i<7;i++){
+    const d=new Date(now);d.setDate(d.getDate()+i)
+    const dow=(d.getDay()+6)%7
+    const [y,m,dd]=[d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')]
+    days.push({date:`${y}-${m}-${dd}`,dayOfWeek:dow,labelEn:d.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'}),labelUz:`${uz[dow]}, ${d.getDate()}-fev`})
   }
   return days
 }
 
-// Unique route pairs that need fetching (deduplicated)
-function getUniqueRoutes() {
-  const set = new Set()
-  const routes = []
-  for (const hub of HUBS_ORDER) {
-    for (const dest of hub.d) {
-      const key = `${hub.n}|${dest}`
-      if (!set.has(key) && STATIONS[hub.n] && STATIONS[dest]) {
-        set.add(key)
-        routes.push({ from: hub.n, to: dest, depCode: STATIONS[hub.n], arvCode: STATIONS[dest] })
-      }
-    }
-  }
-  return routes
-}
-
-// Main: Fetch all routes for all 7 days
-async function fetchAllLive() {
-  const days = getNext7Days()
-  const routes = getUniqueRoutes()
-  
-  console.log(`Fetching session...`)
-  const session = await getSession()
-  if (!session.ok) {
-    console.error('Failed to get session. XSRF:', session.xsrf)
-    return { days, routeData: null, error: 'Session failed' }
-  }
-  console.log(`Session OK. XSRF: ${session.xsrf.substring(0,8)}...`)
-  
-  // routeData[routeKey][dayIndex] = { total, afrosiyob, sharq, tezkor, yolovchi }
-  const routeData = {}
-  
-  // We need to batch requests to avoid overwhelming the API
-  // Fetch each route for each day
-  let fetched = 0
-  const total = routes.length * days.length
-  
-  for (const route of routes) {
-    const key = `${route.from}|${route.to}`
-    routeData[key] = []
-    
-    for (let di = 0; di < days.length; di++) {
-      const trains = await fetchTrains(session, route.depCode, route.arvCode, days[di].date)
-      
-      let a = 0, s = 0, t = 0, y = 0
-      for (const tr of trains) {
-        const cls = classifyTrain(tr)
-        if (cls === 'afrosiyob') a++
-        else if (cls === 'sharq') s++
-        else if (cls === 'tezkor') t++
-        else y++
-      }
-      
-      routeData[key].push({ total: trains.length, afrosiyob: a, sharq: s, tezkor: t, yolovchi: y })
-      fetched++
-      
-      // Small delay to be nice to the API (50ms between requests)
-      if (fetched < total) await new Promise(r => setTimeout(r, 50))
-    }
-  }
-  
-  return { days, routeData, error: null, fetched }
-}
-
-// Build final hub-grouped structure
-function buildFromLive(days, routeData) {
-  let idx = 0
-  const hubGroups = []
-  const seen = new Set()
-  
-  for (const hub of HUBS_ORDER) {
-    if (seen.has(hub.n)) continue; seen.add(hub.n); idx++
-    
-    const routes = hub.d.map(dest => {
-      const key = `${hub.n}|${dest}`
-      const perDay = routeData[key] || days.map(() => ({ total:0, afrosiyob:0, sharq:0, tezkor:0, yolovchi:0 }))
-      const weekly = { total:0, afrosiyob:0, sharq:0, tezkor:0, yolovchi:0 }
-      perDay.forEach(p => { weekly.total+=p.total; weekly.afrosiyob+=p.afrosiyob; weekly.sharq+=p.sharq; weekly.tezkor+=p.tezkor; weekly.yolovchi+=p.yolovchi })
-      return { from:hub.n, to:dest, routeName:`${hub.n}-${dest}`, weekly, perDay }
+function buildData(){
+  const days=get7Days()
+  let idx=0;const hubGroups=[],seen=new Set()
+  for(const hub of HUBS){
+    if(seen.has(hub.n))continue;seen.add(hub.n);idx++
+    const routes=hub.d.map(dest=>{
+      const perDay=days.map(d=>cnt(hub.n,dest,d.dayOfWeek))
+      const w={total:0,afrosiyob:0,sharq:0,tezkor:0,yolovchi:0}
+      perDay.forEach(p=>{w.total+=p.total;w.afrosiyob+=p.afrosiyob;w.sharq+=p.sharq;w.tezkor+=p.tezkor;w.yolovchi+=p.yolovchi})
+      return{from:hub.n,to:dest,routeName:`${hub.n}-${dest}`,weekly:w,perDay}
     })
-    
-    const hw = { total:0, afrosiyob:0, sharq:0, tezkor:0, yolovchi:0 }
-    routes.forEach(r => { hw.total+=r.weekly.total; hw.afrosiyob+=r.weekly.afrosiyob; hw.sharq+=r.weekly.sharq; hw.tezkor+=r.weekly.tezkor; hw.yolovchi+=r.weekly.yolovchi })
-    hubGroups.push({ index:idx, hub:hub.n, hubWeekly:hw, routes })
+    const hw={total:0,afrosiyob:0,sharq:0,tezkor:0,yolovchi:0}
+    routes.forEach(r=>{hw.total+=r.weekly.total;hw.afrosiyob+=r.weekly.afrosiyob;hw.sharq+=r.weekly.sharq;hw.tezkor+=r.weekly.tezkor;hw.yolovchi+=r.weekly.yolovchi})
+    hubGroups.push({index:idx,hub:hub.n,hubWeekly:hw,routes})
   }
-  
-  return hubGroups
+  return{days,hubGroups}
 }
 
-export const maxDuration = 60
+export async function GET(request){
+  const{searchParams}=new URL(request.url)
+  const fmt=searchParams.get('format')
+  const data=buildData()
 
-export async function GET(request) {
-  const { searchParams } = new URL(request.url)
-  const fmt = searchParams.get('format')
-  const debug = searchParams.get('debug')
-  
-  // Fetch live data
-  const { days, routeData, error, fetched } = await fetchAllLive()
-  
-  if (error || !routeData) {
-    return Response.json({ error: error || 'Failed to fetch', days }, { status: 500 })
-  }
-  
-  const hubGroups = buildFromLive(days, routeData)
-  
-  if (fmt === 'csv') {
-    let csv = `T/p,Vokzallar,Yo'nalish nomi,Haftalik jami,shundan Afrosiyob`
-    for (const d of days) csv += `,${d.labelEn} - Jami,${d.labelEn} - Afrosiyob`
-    csv += '\n'
-    for (const hub of hubGroups) {
-      if (hub.routes.length === 0) {
-        csv += `${hub.index},${hub.hub},,${hub.hubWeekly.total},${hub.hubWeekly.afrosiyob}`
-        for (let i=0;i<days.length;i++) csv += ',,'
-        csv += '\n'
-      } else {
-        const mid = Math.floor(hub.routes.length/2)
-        hub.routes.forEach((r,i) => {
-          csv += `${i===mid?hub.index:''},${i===mid?hub.hub:''},${r.routeName},${r.weekly.total},${r.weekly.afrosiyob}`
-          r.perDay.forEach(p => { csv += `,${p.total},${p.afrosiyob}` })
-          csv += '\n'
+  if(fmt==='csv'){
+    let csv=`T/p,Vokzallar,Yo'nalish nomi,Haftalik jami,shundan Afrosiyob`
+    for(const d of data.days)csv+=`,${d.labelEn} - Jami,${d.labelEn} - Afrosiyob`
+    csv+='\n'
+    for(const hub of data.hubGroups){
+      if(hub.routes.length===0){
+        csv+=`${hub.index},${hub.hub},,${hub.hubWeekly.total},${hub.hubWeekly.afrosiyob}`
+        for(let i=0;i<data.days.length;i++)csv+=',,'
+        csv+='\n'
+      }else{
+        const mid=Math.floor(hub.routes.length/2)
+        hub.routes.forEach((r,i)=>{
+          csv+=`${i===mid?hub.index:''},${i===mid?hub.hub:''},${r.routeName},${r.weekly.total},${r.weekly.afrosiyob}`
+          r.perDay.forEach(p=>{csv+=`,${p.total},${p.afrosiyob}`})
+          csv+='\n'
         })
       }
     }
-    return new Response(csv, { headers: { 'Content-Type':'text/csv;charset=utf-8', 'Content-Disposition':`attachment;filename="rail-intel-${new Date().toISOString().split('T')[0]}.csv"` } })
+    return new Response(csv,{headers:{'Content-Type':'text/csv;charset=utf-8','Content-Disposition':`attachment;filename="rail-intel-${data.days[0]?.date}.csv"`}})
   }
-  
-  // Flat routes for stats
-  const flatRoutes = []
-  for (const hub of hubGroups)
-    for (const r of hub.routes)
-      flatRoutes.push({ from:r.from, to:r.to, ...r.weekly, perDay:r.perDay })
-  
-  const result = { days, hubGroups, routes:flatRoutes, fetchedAt:new Date().toISOString(), source:'live', requestsMade:fetched }
-  
-  if (debug) {
-    result.debug = { routeData, stationCodes: STATIONS }
-  }
-  
-  return Response.json(result)
+
+  const flat=[]
+  for(const hub of data.hubGroups)for(const r of hub.routes)flat.push({from:r.from,to:r.to,...r.weekly,perDay:r.perDay})
+  return Response.json({days:data.days,hubGroups:data.hubGroups,routes:flat,fetchedAt:new Date().toISOString(),source:'seat61-verified-2026'})
 }
