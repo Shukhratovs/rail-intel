@@ -92,11 +92,11 @@ export default function Dashboard() {
     setLoading(true)
     try {
       const res = await fetch('/api/trains')
-      if (!res.ok) throw new Error(`API xatolik: ${res.status}`)
       const json = await res.json()
+      if (!res.ok || json.error) throw new Error(json.error || `API xatolik: ${res.status}`)
       setData(json)
       setFetchedAt(new Date().toLocaleTimeString('uz'))
-      showToast(`✅ Ma'lumotlar yuklandi!`)
+      showToast(`✅ ${json.source === 'live' ? 'Jonli' : 'Statik'} ma'lumotlar yuklandi! (${json.requestsMade || 0} so'rov)`)
     } catch (err) {
       showToast(`❌ Xatolik: ${err.message}`, true)
     } finally { setLoading(false) }
@@ -112,6 +112,8 @@ export default function Dashboard() {
   const totalReys = allRoutes.reduce((s,r) => s+r.total, 0)
   const totalAfro = allRoutes.reduce((s,r) => s+r.afrosiyob, 0)
   const totalSharq = allRoutes.reduce((s,r) => s+r.sharq, 0)
+  const totalTezkor = allRoutes.reduce((s,r) => s+(r.tezkor||0), 0)
+  const totalYolovchi = allRoutes.reduce((s,r) => s+(r.yolovchi||0), 0)
 
   // Filter hub groups
   const hubGroups = (data?.hubGroups || []).filter(g =>
@@ -126,12 +128,12 @@ export default function Dashboard() {
           <div className="logo">🚄</div>
           <div>
             <div className="brand-name">Rail Intel</div>
-            <div className="brand-sub">O'zbekiston Temir Yo'llari · Haftalik jadval</div>
+            <div className="brand-sub">O'zbekiston Temir Yo'llari · Jonli ma'lumotlar</div>
           </div>
         </div>
         <div className="live-badge">
           <div className="live-dot" />
-          Haftalik jadval · O'zbekiston Temir Yo'llari
+          Jonli monitoring · eticket.railway.uz
         </div>
       </header>
 
@@ -171,7 +173,8 @@ export default function Dashboard() {
           {loading && (
             <div className="progress-wrap">
               <div className="train-anim">🚄</div>
-              <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>Ma'lumotlar yuklanmoqda...</div>
+              <div style={{fontSize:14,fontWeight:700,marginBottom:6}}>eticket.railway.uz dan ma'lumotlar yuklanmoqda...</div>
+              <div style={{fontSize:11,color:'var(--muted)',fontFamily:'DM Mono,monospace'}}>~78 marshrut × 7 kun = ~546 so'rov · 30-60 soniya</div>
             </div>
           )}
 
@@ -179,7 +182,7 @@ export default function Dashboard() {
             <div className="table-wrap" style={{padding:'60px 20px',textAlign:'center'}}>
               <div style={{fontSize:36,marginBottom:12}}>🚉</div>
               <div style={{fontSize:14,fontWeight:700,marginBottom:8}}>Ma'lumot yo'q</div>
-              <div style={{fontSize:12,color:'var(--muted)',fontFamily:'DM Mono,monospace',marginBottom:20}}>Boshlash uchun "Yangilash" tugmasini bosing</div>
+              <div style={{fontSize:12,color:'var(--muted)',fontFamily:'DM Mono,monospace',marginBottom:20}}>eticket.railway.uz dan jonli ma'lumotlar yuklanadi</div>
               <button className="btn btn-primary" style={{margin:'0 auto'}} onClick={fetchAll}>🔄 Ma'lumotlarni yuklash</button>
             </div>
           )}
