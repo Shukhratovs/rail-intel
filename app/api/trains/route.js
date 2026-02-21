@@ -46,9 +46,23 @@ const T = [
   ['125','Y','Toshkent','Urganch',[0,1,4,5]],['125','Y','Toshkent','Xiva',[0,1,4,5]],
   ['125','Y','Samarqand','Buxoro',[0,1,4,5]],['125','Y','Samarqand','Xiva',[0,1,4,5]],
   ['125','Y','Buxoro','Urganch',[0,1,4,5]],['125','Y','Buxoro','Xiva',[0,1,4,5]],
-  // 072 Night daily (verified eticket.railway.uz) - Tashkent→Samarkand→Buxoro
-  ['072','Y','Toshkent','Samarqand',D],['072','Y','Toshkent','Buxoro',D],['072','Y','Toshkent','Navoiy',D],
-  ['072','Y','Samarqand','Buxoro',D],
+  // 072 Night daily - Tashkent→Buxoro DIRECT (does NOT stop at Samarkand per Feb 23 data)
+  ['072','Y','Toshkent','Buxoro',D],['072','Y','Toshkent','Navoiy',D],
+  // 716 Nasaf daily - Tashkent→Samarkand→Qarshi (verified Feb 23)
+  ['716','N','Toshkent','Samarqand',D],['716','N','Toshkent','Qarshi',D],['716','N','Samarqand','Qarshi',D],
+  // 082 Yo'lovchi daily - Tashkent→Samarkand→Sariosiyo/Termiz (verified Feb 23)
+  ['082','Y','Toshkent','Samarqand',D],['082','Y','Toshkent','Termiz',D],['082','Y','Toshkent','Qarshi',D],
+  ['082','Y','Samarqand','Termiz',D],['082','Y','Samarqand','Qarshi',D],
+  // 080 Yo'lovchi daily - Tashkent→Samarkand→Termiz (verified Feb 23)
+  ['080','Y','Toshkent','Samarqand',D],['080','Y','Toshkent','Termiz',D],['080','Y','Toshkent','Qarshi',D],
+  ['080','Y','Samarqand','Termiz',D],['080','Y','Samarqand','Qarshi',D],
+  // 076 Yo'lovchi - Tashkent→Samarkand→Buxoro→Xiva (need to verify exact days, appears Mon)
+  ['076','Y','Toshkent','Samarqand',D],['076','Y','Toshkent','Buxoro',D],['076','Y','Toshkent','Xiva',D],['076','Y','Toshkent','Urganch',D],
+  ['076','Y','Samarqand','Buxoro',D],['076','Y','Samarqand','Xiva',D],['076','Y','Buxoro','Xiva',D],['076','Y','Buxoro','Urganch',D],
+  // 129 Yo'lovchi - Andijon→Tashkent→Samarkand→Termiz (verified Feb 23)
+  ['129','Y','Toshkent','Samarqand',D],['129','Y','Toshkent','Termiz',D],
+  ['129','Y','Samarqand','Termiz',D],
+  ['129','Y','Andijon','Toshkent',D],['129','Y','Andijon','Samarqand',D],['129','Y','Andijon','Termiz',D],
 
   // =============================================
   // RETURN: BUXORO / SAMARKAND → TASHKENT direction
@@ -100,17 +114,23 @@ const T = [
   ['729','Y','Andijon','Toshkent',D],['729','Y',"Qo'qon",'Toshkent',D],['729','Y','Margilon','Toshkent',D],['729','Y','Namangan','Toshkent',D],
 
   // =============================================
-  // TASHKENT ↔ TERMIZ
+  // TERMIZ / QARSHI ↔ TASHKENT return direction
   // =============================================
-  // 080 Yo'lovchi daily Termiz→Qarshi→Samarkand→Tashkent
+  // 080 return Termiz→Qarshi→Samarkand→Tashkent
   ['080','Y','Termiz','Toshkent',D],['080','Y','Termiz','Samarqand',D],['080','Y','Termiz','Qarshi',D],
   ['080','Y','Qarshi','Toshkent',D],['080','Y','Qarshi','Samarqand',D],['080','Y','Samarqand','Toshkent',D],
-  // 082 Yo'lovchi Qarshi→Tashkent (via Sariosiyo→Tashkent janubiy)
-  ['082','Y','Qarshi','Toshkent',D],['082','Y','Qarshi','Samarqand',D],
+  // 082 return
+  ['082','Y','Termiz','Toshkent',D],['082','Y','Termiz','Samarqand',D],['082','Y','Termiz','Qarshi',D],
+  ['082','Y','Qarshi','Toshkent',D],['082','Y','Qarshi','Samarqand',D],['082','Y','Samarqand','Toshkent',D],
+  // 716 Nasaf return Qarshi→Samarkand→Tashkent
+  ['716','N','Qarshi','Samarqand',D],['716','N','Qarshi','Toshkent',D],['716','N','Samarqand','Toshkent',D],
   // 703 Nasaf daily Qarshi→Tashkent
   ['703','N','Qarshi','Toshkent',D],
-  // 130 Passenger Termiz→Andijon direction
+  // 130 Passenger Termiz→Qarshi→Tashkent
   ['130','Y','Termiz','Toshkent',D],['130','Y','Termiz','Qarshi',D],['130','Y','Qarshi','Toshkent',D],
+  // 129 return Termiz→Samarkand→Tashkent→Andijon
+  ['129','Y','Termiz','Samarqand',D],['129','Y','Termiz','Toshkent',D],['129','Y','Termiz','Andijon',D],
+  ['129','Y','Samarqand','Toshkent',D],
 
   // =============================================
   // TASHKENT ↔ JIZZAX / GULISTON
